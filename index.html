@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Онлайн-заявка на отгрузку АЛЬФАПРОМ">
+  <title>АЛЬФАПРОМ — заявка на отгрузку</title>
+  <link rel="stylesheet" href="styles.css?v=3">
+</head>
+<body>
+  <header class="topbar"><div class="topbar-inner"><a class="logo" href="./" aria-label="АЛЬФАПРОМ">АЛЬФАПРОМ</a><span class="topbar-title">Оформление заявки на отгрузку</span></div></header>
+  <main class="page">
+    <header class="hero"><h1>Заявка на отгрузку</h1><p>Заполните данные покупателя и доставки. В конце сформируется готовый документ.</p></header>
+    <div class="notice">Заполните заявку по шагам. Реквизиты организации могут подставиться автоматически после ввода ИНН.</div>
+    <div class="wizard-progress" aria-live="polite">
+      <div class="wizard-progress-top"><strong id="wizard-title">Шаг 1 из 5</strong><span id="wizard-label">Тип покупателя</span></div>
+      <div class="wizard-progress-track"><span id="wizard-bar"></span></div>
+    </div>
+    <form id="request-form" novalidate>
+      <section class="card wizard-step" data-step="1">
+        <div class="section-heading"><span>1</span><div><h2>Кто оформляет заявку</h2><p>Выберите тип покупателя — форма покажет нужные поля.</p></div></div>
+        <div class="choice-grid two">
+          <label class="choice active"><input type="radio" name="customerType" value="legal" checked><strong>Юридическое лицо</strong><small>ООО, АО и другие организации</small></label>
+          <label class="choice"><input type="radio" name="customerType" value="person"><strong>Физическое лицо или ИП</strong><small>Покупатель без юрлица или индивидуальный предприниматель</small></label>
+        </div>
+      </section>
+      <section class="card customer legal-fields wizard-step" data-step="2">
+        <div class="section-heading"><span>2</span><div><h2>Данные организации</h2><p>Введите ИНН — остальные поля появятся после поиска.</p></div></div>
+        <label>ИНН<input name="legalInn" inputmode="numeric" maxlength="12" placeholder="10 или 12 цифр" autocomplete="off" aria-describedby="legal-inn-status" aria-controls="legal-details"><small id="legal-inn-status" class="lookup-status" aria-live="polite"></small></label>
+        <div id="legal-details" class="fields two-col hidden" data-lookup-state="idle">
+          <label>Полное наименование организации<input name="legalName" placeholder="ООО «Пример»"></label>
+          <label>КПП <em>необязательно</em><input name="kpp" inputmode="numeric" maxlength="9"></label>
+          <label>ОГРН <em>необязательно</em><input name="ogrn" inputmode="numeric" maxlength="13"></label>
+          <label>ФИО подписанта<input name="legalSigner" placeholder="Иванов Иван Иванович"></label>
+          <label>Должность подписанта<input name="legalRole" placeholder="Генеральный директор"></label>
+          <label class="wide">Основание полномочий<input name="legalBasis" value="Устава"></label>
+        </div>
+      </section>
+      <section class="card customer person-fields hidden wizard-step" data-step="2">
+        <div class="section-heading"><span>2</span><div><h2>Данные покупателя</h2><p>Для ИП отметьте статус и добавьте ИНН.</p></div></div>
+        <label class="checkbox-line"><input type="checkbox" name="isIp"> Я индивидуальный предприниматель</label>
+        <div class="fields two-col">
+          <label>Фамилия, имя, отчество<input name="personName" placeholder="Иванов Иван Иванович"></label>
+          <label>ИНН <em class="ip-only hidden">для ИП</em><input name="personInn" inputmode="numeric" maxlength="12" placeholder="10 или 12 цифр"></label>
+          <label>Паспорт получателя <em>для физ. лица</em><input name="personPassport" autocomplete="off" inputmode="text" maxlength="24" placeholder="0000 000000"></label>
+          <label class="ip-only hidden">ОГРНИП <em>необязательно</em><input name="ogrnip" inputmode="numeric" maxlength="15"></label>
+          <label>Телефон<input name="contactPhone" type="tel" placeholder="+7 900 000-00-00"></label>
+          <label>Электронная почта <em>необязательно</em><input name="contactEmail" type="email" placeholder="name@example.ru"></label>
+          <label class="wide">Адрес регистрации <em>необязательно</em><input name="personAddress"></label>
+        </div>
+      </section>
+      <section class="card wizard-step" data-step="3">
+        <div class="section-heading"><span>3</span><div><h2>Получение и условия отгрузки</h2><p>Укажите способ получения и сведения для итоговой заявки.</p></div></div>
+        <div class="choice-grid two">
+          <label class="choice active"><input type="radio" name="deliveryType" value="carrier" checked><strong>Транспортной компанией</strong><small>Передайте данные перевозчика</small></label>
+          <label class="choice"><input type="radio" name="deliveryType" value="representative"><strong>Самовывоз</strong><small>Укажите данные человека, который приедет</small></label>
+        </div>
+        <div class="fields two-col delivery carrier-fields">
+          <label class="city-picker">Город получения
+            <input name="carrierCity" autocomplete="off" placeholder="Начните вводить город" aria-autocomplete="list" aria-expanded="false">
+            <div class="city-suggestions hidden" id="carrier-city-options" role="listbox" aria-label="Варианты города"></div>
+          </label>
+          <label>Транспортная компания
+            <select name="carrier"><option value="">Выберите транспортную компанию</option><option>ПЭК</option><option>Деловые Линии</option><option>СДЭК</option><option>КИТ</option><option>Байкал Сервис</option><option>ЖелДорЭкспедиция</option><option>Другая</option></select>
+          </label>
+          <label>Способ доставки
+            <select name="carrierDeliveryMode"><option value="terminal">До терминала транспортной компании</option><option value="address">Адресная доставка</option></select>
+          </label>
+          <label class="terminal-choice">Терминал транспортной компании
+            <input name="terminal" list="terminal-options" autocomplete="off" placeholder="Выберите или укажите терминал"><datalist id="terminal-options"></datalist>
+            <small class="field-help" id="terminal-help">Укажите терминал выбранной транспортной компании.</small>
+          </label>
+          <label class="wide address-choice hidden">Адрес доставки<input name="deliveryAddress" autocomplete="street-address" placeholder="Город, улица, дом, офис или склад"></label>
+          <label>Грузополучатель<input name="recipient" placeholder="Организация или ФИО"></label>
+          <label>Телефон получателя<input name="recipientPhone" type="tel"></label>
+          <label class="wide">Комментарий для перевозчика <em>необязательно</em><textarea name="carrierNote" rows="2"></textarea></label>
+        </div>
+        <div class="fields two-col delivery representative-fields hidden">
+          <label>Должность получателя<input name="repPosition" placeholder="Водитель, менеджер, директор"></label>
+          <label>ФИО получателя<input name="repName" autocomplete="name" placeholder="Иванов Иван Иванович"></label>
+          <label>Паспорт: серия и номер<input name="repPassport" autocomplete="off" inputmode="text" maxlength="24" placeholder="0000 000000"><small class="field-help">Пробел добавится автоматически. Для иностранного паспорта можно начать с букв.</small></label>
+          <label>Когда приедет забирать <em>необязательно</em><input name="pickupDate" type="date"></label>
+          <label class="wide">Кем и когда выдан<input name="repPassportIssued" placeholder="Наименование органа, дата"></label>
+        </div>
+        <div class="fields two-col shipment-details">
+          <label class="wide">Счёт, договор или спецификация<input name="shipmentBasis" placeholder="Например: счёт № 25С-573 от 21.07.2026"></label>
+          <label>Плательщик доставки<select name="deliveryPayer"><option value="Получатель">Получатель</option><option value="Отправитель">Отправитель</option></select></label>
+          <label>Дополнительная упаковка<select name="extraPacking"><option value="Нет">Нет</option><option value="Нужна, оплачивается отдельно">Нужна, оплачивается отдельно</option></select></label>
+          <label>Страховка груза<select name="cargoInsurance"><option value="Нет">Нет</option><option value="На сумму из счёта">На сумму из счёта</option></select></label>
+          <label>Оригиналы документов<select name="originalsMethod"><option value="ЭДО">ЭДО</option><option value="Электронная почта">Электронная почта</option><option value="Почта России">Почта России</option></select></label>
+        </div>
+      </section>
+      <section class="card wizard-step" data-step="4">
+        <div class="section-heading"><span>4</span><div><h2>Подписание</h2><p>Выберите удобный способ. PDF формируется прямо в браузере.</p></div></div>
+        <div class="choice-grid three sign-methods">
+          <label class="choice active"><input type="radio" name="signMethod" value="print" checked><strong>Распечатать и подписать</strong><small>Скачать PDF, подписать, затем приложить фото</small></label>
+          <label class="choice"><input type="radio" name="signMethod" value="edo"><strong>Отправить через ЭДО</strong><small>Скачать PDF и передать бухгалтеру</small></label>
+          <label class="choice"><input type="radio" name="signMethod" value="sbis"><strong>Подписать через СБИС</strong><small>В тесте сформируем файл и заявку на отправку</small></label>
+        </div>
+        <div id="photo-upload" class="upload-box"><label>Фото или скан подписанного документа<input type="file" accept="image/*,.pdf" name="signedFile"></label><small id="file-name">Файл не выбран</small></div>
+      </section>
+      <section class="card agreement wizard-step" data-step="5">
+        <label class="checkbox-line"><input type="checkbox" name="accuracy"> Подтверждаю, что сведения в заявке верны.</label>
+        <button class="primary" type="submit">Сформировать PDF</button>
+        <p class="form-error" id="form-error" role="alert"></p>
+      </section>
+    </form>
+    <section id="result" class="result hidden" aria-live="polite">
+      <h2>Документ подготовлен</h2><p id="result-text"></p>
+      <div class="result-actions"><button id="download-pdf" class="primary">Открыть для сохранения PDF</button><button id="print-pdf" class="secondary">Распечатать</button></div>
+      <p id="sign-instruction" class="result-note"></p>
+    </section>
+  </main>
+  <footer>АЛЬФАПРОМ · онлайн-заявка на отгрузку</footer>
+  <script src="form.js?v=5"></script>
+  <script src="lookup.js?v=4"></script>
+  <script src="wizard.js?v=6"></script>
+  <script src="carrier.js?v=2"></script>
+  <script src="passport.js?v=3"></script>
+</body>
+</html>
+
