@@ -35,7 +35,7 @@
 
   function lookup(inn) {
     const currentRequest = requestNumber;
-    const callback = '__companyLookup' + Date.now() + '_' + currentRequest;
+    const callback = '__alfapromLookup' + Date.now() + '_' + currentRequest;
     const script = document.createElement('script');
     let timeout;
     let settled = false;
