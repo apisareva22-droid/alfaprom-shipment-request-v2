@@ -7,7 +7,23 @@
   if (!innInput || !status || !details) return;
 
   const fallback = 'К сожалению, не удалось найти организацию по ИНН. Введите данные.';
-  const fields = { name: 'legalName', kpp: 'kpp', ogrn: 'ogrn', signer: 'legalSigner', role: 'legalRole' };
+  // The protected service may use either short or descriptive field names.
+  // Keep the client independent from the data source and accept both.
+  const fields = {
+    name: { target: 'legalName', source: ['name', 'companyName', 'fullName'] },
+    kpp: { target: 'kpp', source: ['kpp'] },
+    ogrn: { target: 'ogrn', source: ['ogrn'] },
+    signer: { target: 'legalSigner', source: ['signer', 'signerName', 'director', 'ceo', 'generalDirector', 'headName'] },
+    role: { target: 'legalRole', source: ['role', 'signerRole', 'signerPosition', 'directorPosition', 'position', 'headPosition'] }
+  };
+
+  function firstText(record, names) {
+    for (const name of names) {
+      const value = record[name];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+  }
   let timer;
   let requestNumber = 0;
   let cancelRequest = function () {};
@@ -55,8 +71,9 @@
       const found = company && company.inn === inn && typeof company.name === 'string' && company.name.trim();
       if (found) {
         Object.keys(fields).forEach(function (key) {
-          const value = company[key];
-          document.querySelector('[name="' + fields[key] + '"]').value = typeof value === 'string' ? value : '';
+          const field = fields[key];
+          const value = firstText(company, field.source);
+          document.querySelector('[name="' + field.target + '"]').value = value;
         });
       }
       details.classList.remove('hidden');
