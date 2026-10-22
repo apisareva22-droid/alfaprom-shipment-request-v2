@@ -68,7 +68,8 @@
       cleanup();
       if (currentRequest !== requestNumber || innInput.value !== inn || !isLegal()) return;
       const company = response && response.ok === true && response.found === true && response.company;
-      const found = company && company.inn === inn && typeof company.name === 'string' && company.name.trim();
+      const returnedInn = String(company && (company.inn || company.taxId || company.INN) || '').replace(/\D/g, '');
+      const found = company && returnedInn === inn && typeof company.name === 'string' && company.name.trim();
       if (found) {
         Object.keys(fields).forEach(function (key) {
           const field = fields[key];
