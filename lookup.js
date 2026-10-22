@@ -4,17 +4,17 @@
   const innInput = document.querySelector('[name="legalInn"]');
   const status = document.querySelector('#legal-inn-status');
   const details = document.querySelector('#legal-details');
+  const recipientInput = document.querySelector('[name="recipient"]');
   if (!innInput || !status || !details) return;
 
   const fallback = 'К сожалению, не удалось найти организацию по ИНН. Введите данные.';
-  // The protected service may use either short or descriptive field names.
-  // Keep the client independent from the data source and accept both.
   const fields = {
     name: { target: 'legalName', source: ['name', 'companyName', 'fullName'] },
     kpp: { target: 'kpp', source: ['kpp'] },
     ogrn: { target: 'ogrn', source: ['ogrn'] },
     signer: { target: 'legalSigner', source: ['signer', 'signerName', 'director', 'ceo', 'generalDirector', 'headName'] },
-    role: { target: 'legalRole', source: ['role', 'signerRole', 'signerPosition', 'directorPosition', 'position', 'headPosition'] }
+    role: { target: 'legalRole', source: ['role', 'signerRole', 'signerPosition', 'directorPosition', 'position', 'headPosition'] },
+    phone: { target: 'recipientPhone', source: ['phone', 'recipientPhone', 'contactPhone'], preserveWhenEmpty: true }
   };
 
   function firstText(record, names) {
@@ -24,6 +24,17 @@
     }
     return '';
   }
+
+  let autoRecipient = '';
+  function syncRecipientName(name) {
+    const value = String(name || '').trim();
+    if (!value || !recipientInput) return;
+    if (!recipientInput.value || recipientInput.value === autoRecipient) {
+      recipientInput.value = value;
+      autoRecipient = value;
+    }
+  }
+
   let timer;
   let requestNumber = 0;
   let cancelRequest = function () {};
@@ -35,7 +46,8 @@
   }
 
   function isLegal() {
-    return document.querySelector('[name="customerType"]:checked').value === 'legal';
+    const selected = document.querySelector('[name="customerType"]:checked');
+    return selected && selected.value === 'legal';
   }
 
   function reset() {
@@ -74,8 +86,10 @@
         Object.keys(fields).forEach(function (key) {
           const field = fields[key];
           const value = firstText(company, field.source);
-          document.querySelector('[name="' + field.target + '"]').value = value;
+          const target = document.querySelector('[name="' + field.target + '"]');
+          if (target && !(field.preserveWhenEmpty && !value)) target.value = value;
         });
+        syncRecipientName(firstText(company, fields.name.source));
       }
       details.classList.remove('hidden');
       details.dataset.lookupState = 'ready';
@@ -109,9 +123,14 @@
   }
 
   innInput.addEventListener('input', onInnInput);
+  const legalNameInput = document.querySelector('[name="legalName"]');
+  if (legalNameInput) {
+    legalNameInput.addEventListener('input', function () {
+      if (isLegal()) syncRecipientName(legalNameInput.value);
+    });
+  }
   document.querySelectorAll('[name="customerType"]').forEach(function (input) {
     input.addEventListener('change', function () {
-      // Discard in-flight responses on type changes; completed manual edits may remain.
       clearTimeout(timer);
       ++requestNumber;
       cancelRequest();
@@ -124,4 +143,3 @@
   message('Введите ИНН для поиска организации.');
   if (innInput.value) onInnInput();
 }());
-
