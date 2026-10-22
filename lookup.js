@@ -104,7 +104,7 @@
     window[callback] = finish;
     script.onerror = function () { finish(null); };
     script.onload = function () { if (!settled) finish(null); };
-    timeout = setTimeout(function () { finish(null); }, 10000);
+    timeout = setTimeout(function () { finish(null); }, 20000);
     script.src = API_URL + '?inn=' + encodeURIComponent(inn) + '&callback=' + encodeURIComponent(callback);
     script.referrerPolicy = 'no-referrer';
     document.head.appendChild(script);
