@@ -5,6 +5,7 @@
   const status = document.querySelector('#legal-inn-status');
   const details = document.querySelector('#legal-details');
   const recipientInput = document.querySelector('[name="recipient"]');
+  const shipmentBasisInput = document.querySelector('[name="shipmentBasis"]');
   if (!innInput || !status || !details) return;
 
   const fallback = 'К сожалению, не удалось найти организацию по ИНН. Введите данные.';
@@ -26,12 +27,24 @@
   }
 
   let autoRecipient = '';
+  let autoShipmentBasis = '';
   function syncRecipientName(name) {
     const value = String(name || '').trim();
     if (!value || !recipientInput) return;
     if (!recipientInput.value || recipientInput.value === autoRecipient) {
       recipientInput.value = value;
       autoRecipient = value;
+    }
+  }
+
+  function syncInvoice(invoice) {
+    const number = String(invoice && invoice.number || '').trim();
+    const date = String(invoice && invoice.date || '').trim();
+    if (!number || !shipmentBasisInput) return;
+    const value = 'Счёт № ' + number + (date ? ' от ' + date : '');
+    if (!shipmentBasisInput.value || shipmentBasisInput.value === autoShipmentBasis) {
+      shipmentBasisInput.value = value;
+      autoShipmentBasis = value;
     }
   }
 
@@ -58,6 +71,10 @@
     details.dataset.lookupState = 'idle';
     details.removeAttribute('aria-busy');
     details.querySelectorAll('input').forEach(function (input) { input.value = input.defaultValue; });
+    if (shipmentBasisInput && shipmentBasisInput.value === autoShipmentBasis) {
+      shipmentBasisInput.value = '';
+      autoShipmentBasis = '';
+    }
     document.querySelector('#result').classList.add('hidden');
   }
 
@@ -90,6 +107,7 @@
           if (target && !(field.preserveWhenEmpty && !value)) target.value = value;
         });
         syncRecipientName(firstText(company, fields.name.source));
+        syncInvoice(company.invoice);
       }
       details.classList.remove('hidden');
       details.dataset.lookupState = 'ready';
