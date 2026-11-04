@@ -24,3 +24,8 @@ label{color:#374151;font-size:13px}input,textarea,select{min-height:44px;border-
 .wizard-nav{margin-top:23px;padding-top:18px}.primary,.secondary{min-height:44px;border-radius:11px;padding:11px 19px;transition:transform .15s ease,box-shadow .15s ease,background .15s ease}.primary{box-shadow:0 5px 12px rgba(255,129,0,.22)}.primary:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(255,129,0,.28)}.secondary{background:#f0f2f4}.secondary:hover{background:#e8ebee}
 .result{border:1px solid #c9ead2;box-shadow:0 10px 25px rgba(22,163,74,.08)}.upload-box{border-radius:13px;background:#fffaf6}.city-suggestions{border-color:#f6b975;border-radius:12px;box-shadow:0 14px 32px rgba(27,36,48,.17)}footer{padding:30px 22px;color:#818994}
 @media(max-width:650px){body{background:linear-gradient(180deg,#fff9f4 0,#f6f7f9 180px)}.topbar-inner{padding:14px 16px}.page{padding:17px 14px 32px}.hero{padding:14px 0 19px}.hero h1{font-size:30px}.hero p{font-size:14px}.notice{margin-bottom:14px;padding:13px 14px}.wizard-progress{position:static;border-radius:14px;padding:13px 14px;box-shadow:0 5px 15px rgba(26,35,48,.06)}.card,.result{border-radius:15px;padding:18px}.section-heading{margin-bottom:16px;padding-bottom:13px}.choice{min-height:0;padding:15px 42px 15px 15px}.wizard-nav{box-shadow:0 -8px 22px rgba(26,35,48,.07);border-radius:14px 14px 0 0}}
+
+
+/* Keep checkboxes native-sized; generic field styles must not stretch them. */
+.checkbox-line input{appearance:auto;-webkit-appearance:checkbox;display:inline-block;flex:none;width:18px;height:18px;min-height:0;margin:0;padding:0;border:0;border-radius:4px;box-shadow:none;accent-color:var(--orange);background:transparent}
+.checkbox-line input:focus{outline:2px solid #ffbf7a;outline-offset:2px;box-shadow:none}
