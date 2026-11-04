@@ -15,7 +15,6 @@ function toggleSections() {
   const data = getData();
   document.querySelector('.legal-fields').classList.toggle('hidden', data.customerType !== 'legal');
   document.querySelector('.person-fields').classList.toggle('hidden', data.customerType !== 'person');
-  document.querySelectorAll('.ip-only').forEach(el => el.classList.toggle('hidden', data.isIp !== 'on'));
   const delivery = data.deliveryType;
   document.querySelector('.carrier-fields').classList.toggle('hidden', delivery !== 'carrier');
   document.querySelector('.representative-fields').classList.toggle('hidden', delivery !== 'representative');
@@ -25,7 +24,7 @@ function required(data, value, label) { if (!value?.trim()) throw new Error(`З�
 function validate(data) {
   if(data.customerType==='legal' && document.querySelector('#legal-details').classList.contains('hidden')) throw new Error('Введите ИНН и дождитесь завершения поиска организации.');
   if(data.customerType==='legal'){required(data,data.legalName,'Полное наименование организации');required(data,data.legalInn,'ИНН');required(data,data.legalSigner,'ФИО подписанта');}
-  else {required(data,data.personName,'ФИО');required(data,data.contactPhone,'Телефон'); if(data.isIp==='on')required(data,data.personInn,'ИНН ИП');}
+  else {required(data,data.personName,'ФИО');required(data,data.contactPhone,'Телефон'); }
   if(data.deliveryType==='carrier'){
     required(data,data.carrier,'Транспортная компания');
     required(data,data.carrierCity,'Город получения');
@@ -46,8 +45,8 @@ function date() {return new Intl.DateTimeFormat('ru-RU').format(new Date());}
 function docTitle() {return 'ЗАЯВКА НА ОТГРУЗКУ';}
 const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 function makePdf(data) {
-  const buyer = data.customerType === 'legal' ? data.legalName : data.personName + (data.isIp === 'on' ? ' (ИП)' : '');
-  const inn = data.customerType === 'legal' ? data.legalInn : (data.personInn || '—');
+  const buyer = data.customerType === 'legal' ? data.legalName : data.personName;
+  const inn = data.customerType === 'legal' ? data.legalInn : '—';
   const isCarrier = data.deliveryType === 'carrier';
   const recipient = isCarrier ? data.recipient : buyer;
   const passport = isCarrier ? (data.customerType === 'person' ? (data.personPassport || '—') : '—') : data.repPassport + '; ' + data.repPassportIssued;
