@@ -39,8 +39,6 @@
       } else {
         requireValue('[name="personName"]', 'Фамилия, имя, отчество');
         requireValue('[name="contactPhone"]', 'Телефон');
-        const isIp = form.querySelector('[name="isIp"]').checked;
-        if (isIp) requireValue('[name="personInn"]', 'ИНН ИП');
       }
     }
     if (step === 3) {
@@ -107,7 +105,7 @@
     if (back) showStep(Math.max(1, currentStep - 1), true);
   });
 
-  document.querySelectorAll('[name="customerType"], [name="deliveryType"], [name="isIp"]').forEach(function (input) {
+  document.querySelectorAll('[name="customerType"], [name="deliveryType"]').forEach(function (input) {
     input.addEventListener('change', function () {
       if (currentStep === 2 || currentStep === 3) showStep(currentStep, false);
     });
