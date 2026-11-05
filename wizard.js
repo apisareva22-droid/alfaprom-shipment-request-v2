@@ -52,6 +52,8 @@
         requireValue('[name="carrier"]', 'Транспортная компания');
         requireValue('[name="carrierCity"]', 'Город получения');
         requireValue('[name="recipient"]', 'Грузополучатель');
+        requireValue('[name="recipientContactName"]', 'Контактное лицо получателя');
+        requireValue('[name="recipientPhone"]', 'Телефон контактного лица');
         if (form.querySelector('[name="carrierDeliveryMode"]').value === 'address') {
           requireValue('[name="deliveryAddress"]', 'Адрес доставки');
         } else {
