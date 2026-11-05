@@ -2,9 +2,98 @@ const SPREADSHEET_ID = '1bsYAQg6CbPhBcREOwoqlNCccT1vb8JrfnTyrbn3Oikk';
 const REQUESTS_SHEET = 'Заявки';
 const DRIVE_FOLDER_ID = '1jPh67k7PszSG_dfo4O5UBkvJDzrGkrQM';
 const MAX_FILES = 2;
+const PEK_API_BASE = 'https://kabinet.pecom.ru/api/v1';
 
-function doGet() {
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (p.action === 'pekTerminals') {
+    try {
+      return jsonpResponse_(getPekTerminals_((p.location || '').trim()), p.callback);
+    } catch (error) {
+      console.error(error);
+      return jsonpResponse_({ ok: false, terminals: [], error: error.message }, p.callback);
+    }
+  }
   return response_({ ok: true, service: 'alfaprom-shipment-requests' });
+}
+
+function getPekTerminals_(location) {
+  if (location.length < 2) throw new Error('Укажите населённый пункт.');
+
+  const cache = CacheService.getScriptCache();
+  const key = 'pek:' + location.toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '-').slice(0, 120);
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const result = pekRequest_('/branches/nearestdepartments/', {
+    address: location,
+    weight: null,
+    volume: null,
+    maxDimension: null,
+    maxWeightPerPlace: null,
+    departmentOperation: 3,
+    type: 3,
+    searchRadius: 100,
+    limit: 5
+  });
+
+  const seen = {};
+  const terminals = (result.freeDepartments || []).concat(result.paidDepartments || [])
+    .filter(function (department) {
+      if (!department.warehouseId || seen[department.warehouseId]) return false;
+      seen[department.warehouseId] = true;
+      return true;
+    })
+    .map(function (department) {
+      return {
+        id: department.warehouseId,
+        branchId: department.branchId || '',
+        branchName: department.branchName || '',
+        name: department.divisionName || department.branchName || 'Терминал ПЭК',
+        address: department.address || '',
+        type: department.departmentType || '',
+        phone: department.phone || ''
+      };
+    });
+
+  const output = { ok: true, location: location, terminals: terminals };
+  cache.put(key, JSON.stringify(output), 21600);
+  return output;
+}
+
+function pekRequest_(path, payload) {
+  const properties = PropertiesService.getScriptProperties();
+  const login = properties.getProperty('PEK_LOGIN');
+  const apiKey = properties.getProperty('PEK_IP');
+  if (!login || !apiKey) throw new Error('Добавьте PEK_LOGIN и PEK_IP в свойства сценария.');
+
+  const response = UrlFetchApp.fetch(PEK_API_BASE + path, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Basic ' + Utilities.base64Encode(login + ':' + apiKey) },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  const status = response.getResponseCode();
+  let data;
+  try {
+    data = JSON.parse(response.getContentText());
+  } catch (error) {
+    throw new Error('ПЭК вернул некорректный ответ.');
+  }
+
+  if (status < 200 || status >= 300) {
+    throw new Error((data && (data.errorMessage || data.message)) || 'ПЭК временно недоступен.');
+  }
+  if (data && data.hasError) throw new Error(data.errorMessage || 'ПЭК не смог подобрать терминалы.');
+  return data;
+}
+
+function jsonpResponse_(payload, callback) {
+  const safeCallback = /^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback || '') ? callback : '';
+  const output = safeCallback ? safeCallback + '(' + JSON.stringify(payload) + ');' : JSON.stringify(payload);
+  return ContentService.createTextOutput(output)
+    .setMimeType(safeCallback ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
