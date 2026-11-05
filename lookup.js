@@ -11,8 +11,6 @@
   const fallback = 'К сожалению, не удалось найти организацию по ИНН. Введите данные.';
   const fields = {
     name: { target: 'legalName', source: ['name', 'companyName', 'fullName'] },
-    kpp: { target: 'kpp', source: ['kpp'] },
-    ogrn: { target: 'ogrn', source: ['ogrn'] },
     signer: { target: 'legalSigner', source: ['signer', 'signerName', 'director', 'ceo', 'generalDirector', 'headName'] },
     role: { target: 'legalRole', source: ['role', 'signerRole', 'signerPosition', 'directorPosition', 'position', 'headPosition'] },
     phone: { target: 'recipientPhone', source: ['phone', 'recipientPhone', 'contactPhone'], preserveWhenEmpty: true }
