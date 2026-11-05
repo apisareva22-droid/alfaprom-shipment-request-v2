@@ -41,6 +41,11 @@
         requireValue('[name="contactPhone"]', 'Телефон');
       }
     }
+    if (step === 4) {
+      const originalsMethod = form.querySelector('[name="originalsMethod"]:checked').value;
+      if (originalsMethod === 'Электронная почта') requireValue('[name="originalsEmail"]', 'Адрес электронной почты для отправки документов');
+      if (originalsMethod === 'Почта России') requireValue('[name="originalsPostalAddress"]', 'Адрес для отправки документов');
+    }
     if (step === 3) {
       const delivery = form.querySelector('[name="deliveryType"]:checked').value;
       if (delivery === 'carrier') {
