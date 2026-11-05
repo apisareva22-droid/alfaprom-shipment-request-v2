@@ -91,6 +91,8 @@
           <label class="choice"><input type="radio" name="originalsMethod" value="Электронная почта"><strong>Электронная почта</strong><small>Получить документы по e-mail</small></label>
           <label class="choice"><input type="radio" name="originalsMethod" value="Почта России"><strong>Почта России</strong><small>Получить бумажные оригиналы по почте</small></label>
         </div>
+        <div class="fields originals-email-fields hidden"><label class="wide">Введите адрес электронной почты для отправки документов<input name="originalsEmail" type="email" autocomplete="email" placeholder="name@example.ru"></label></div>
+        <div class="fields originals-post-fields hidden"><label class="wide">Введите адрес для отправки документов<input name="originalsPostalAddress" autocomplete="street-address" placeholder="Индекс, город, улица, дом, квартира или офис"></label></div>
       </section>
       <section class="card wizard-step" data-step="5">
         <div class="section-heading"><span>5</span><div><h2>Подписание</h2><p>Выберите удобный способ. После проверки будет сформирован PDF.</p></div></div>
@@ -115,9 +117,9 @@
     </section>
   </main>
   <footer>АЛЬФАПРОМ · онлайн-заявка на отгрузку</footer>
-  <script src="form.js?v=8"></script>
+  <script src="form.js?v=9"></script>
   <script src="lookup.js?v=8"></script>
-  <script src="wizard.js?v=8"></script>
+  <script src="wizard.js?v=9"></script>
   <script src="carrier.js?v=2"></script>
   <script src="passport.js?v=3"></script>
 </body>
