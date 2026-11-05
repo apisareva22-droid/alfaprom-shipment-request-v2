@@ -60,7 +60,9 @@
             <select name="carrierDeliveryMode"><option value="terminal">До терминала транспортной компании</option><option value="address">Адресная доставка</option></select>
           </label>
           <label class="terminal-choice">Терминал транспортной компании
+            <select name="pekTerminal" class="pek-terminal-select hidden" aria-label="Ближайшие терминалы ПЭК"><option value="">Выберите ближайший терминал ПЭК</option></select>
             <input name="terminal" list="terminal-options" autocomplete="off" placeholder="Выберите или укажите терминал"><datalist id="terminal-options"></datalist>
+            <input type="hidden" name="pekWarehouseId">
             <small class="field-help" id="terminal-help">Укажите терминал выбранной транспортной компании.</small>
           </label>
           <label class="wide address-choice hidden">Адрес доставки<input name="deliveryAddress" autocomplete="street-address" placeholder="Город, улица, дом, офис или склад"></label>
@@ -118,7 +120,7 @@
   <script src="form.js?v=14"></script>
   <script src="lookup.js?v=9"></script>
   <script src="wizard.js?v=10"></script>
-  <script src="carrier.js?v=4"></script>
+  <script src="carrier.js?v=5"></script>
   <script src="passport.js?v=3"></script>
 </body>
 </html>
