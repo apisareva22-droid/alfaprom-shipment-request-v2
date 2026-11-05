@@ -11,7 +11,6 @@
   <header class="topbar"><div class="topbar-inner"><a class="logo" href="./" aria-label="АЛЬФАПРОМ">АЛЬФАПРОМ</a><span class="topbar-title">Оформление заявки на отгрузку</span></div></header>
   <main class="page">
     <header class="hero"><h1>Заявка на отгрузку</h1><p>Заполните данные покупателя и доставки. В конце сформируется готовый документ.</p></header>
-    <div class="notice">Заполните заявку по шагам. Реквизиты организации могут подставиться автоматически после ввода ИНН.</div>
     <div class="wizard-progress" aria-live="polite">
       <div class="wizard-progress-top"><strong id="wizard-title">Шаг 1 из 5</strong><span id="wizard-label">Тип покупателя</span></div>
       <div class="wizard-progress-track"><span id="wizard-bar"></span></div>
@@ -68,8 +67,9 @@
             <small class="field-help" id="terminal-help">Укажите терминал выбранной транспортной компании.</small>
           </label>
           <label class="wide address-choice hidden">Адрес доставки<input name="deliveryAddress" autocomplete="street-address" placeholder="Город, улица, дом, офис или склад"></label>
-          <label>Грузополучатель<input name="recipient" placeholder="Организация или ФИО"></label>
-          <label>Телефон получателя<input name="recipientPhone" type="tel"></label>
+          <label class="wide">Грузополучатель<input name="recipient" placeholder="Наименование организации или ФИО"></label>
+          <label>Контактное лицо получателя<input name="recipientContactName" autocomplete="name" placeholder="Иванов Иван Иванович"></label>
+          <label>Телефон контактного лица<input name="recipientPhone" type="tel" placeholder="+7 900 000-00-00"></label>
           <label class="wide">Комментарий для перевозчика <em>необязательно</em><textarea name="carrierNote" rows="2"></textarea></label>
         </div>
         <div class="fields two-col delivery representative-fields hidden">
@@ -117,9 +117,9 @@
     </section>
   </main>
   <footer>АЛЬФАПРОМ · онлайн-заявка на отгрузку</footer>
-  <script src="form.js?v=11"></script>
+  <script src="form.js?v=12"></script>
   <script src="lookup.js?v=8"></script>
-  <script src="wizard.js?v=9"></script>
+  <script src="wizard.js?v=10"></script>
   <script src="carrier.js?v=2"></script>
   <script src="passport.js?v=3"></script>
 </body>
