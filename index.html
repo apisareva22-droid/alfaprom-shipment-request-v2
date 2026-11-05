@@ -113,11 +113,11 @@
       <h2>Документ подготовлен</h2><p id="result-text"></p>
       <div class="result-actions"><button id="download-pdf" class="primary">Скачать PDF</button><button id="print-pdf" class="secondary">Распечатать</button></div>
       <p id="sign-instruction" class="result-note"></p>
-      <div id="signed-upload-result" class="upload-box hidden"><label>Фото или скан подписанного документа<input type="file" accept="image/*,.pdf" name="signedFile"></label><small id="file-name">Файл не выбран</small></div>
+      <div id="signed-upload-result" class="upload-box hidden"><label>Прикрепите до двух файлов с подписанной заявкой<input type="file" multiple name="signedFiles"></label><small id="file-name">Файлы не выбраны</small><button id="submit-signed-request" class="primary" type="button">Отправить заявку на отгрузку</button><p id="send-status" class="result-note" role="status"></p></div>
     </section>
   </main>
   <footer>АЛЬФАПРОМ · онлайн-заявка на отгрузку</footer>
-  <script src="form.js?v=10"></script>
+  <script src="form.js?v=11"></script>
   <script src="lookup.js?v=8"></script>
   <script src="wizard.js?v=9"></script>
   <script src="carrier.js?v=2"></script>
