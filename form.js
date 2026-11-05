@@ -76,7 +76,6 @@ row('Способ направления оригиналов документо
 }
 function printPdf(html){const w=window.open('','_blank');if(!w)return;w.document.write(html);w.document.close();w.focus();w.print();}
 optionCards();
-document.querySelector('[name="isIp"]').addEventListener('change',toggleSections);
 document.querySelector('[name="signedFile"]').addEventListener('change',e=>document.querySelector('#file-name').textContent=e.target.files[0]?.name||'Файл не выбран');
 form.addEventListener('submit',e=>{e.preventDefault();const data=getData(),error=document.querySelector('#form-error');try{validate(data);documentPdf=makePdf(data);error.textContent='';result.classList.remove('hidden');const text=data.signMethod==='print'?'Откройте документ, сохраните его как PDF, распечатайте и подпишите. Файл остаётся только в вашем браузере.':data.signMethod==='edo'?'Документ можно сохранить как PDF и передать в вашу систему ЭДО. Передайте сохранённый документ в вашу систему ЭДО.':'Документ можно сохранить как PDF. Автоматическая отправка в СБИС потребует отдельного подключения после тестирования формы.';document.querySelector('#result-text').textContent=`${docTitle(data)} сформирована.`;document.querySelector('#sign-instruction').textContent=text;result.scrollIntoView({behavior:'smooth'});}catch(err){error.textContent=err.message;}});
 document.querySelector('#download-pdf').addEventListener('click',()=>documentPdf&&printPdf(documentPdf));
