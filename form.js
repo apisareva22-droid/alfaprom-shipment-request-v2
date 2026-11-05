@@ -33,6 +33,8 @@ function validate(data) {
     required(data,data.carrier,'Транспортная компания');
     required(data,data.carrierCity,'Город получения');
     required(data,data.recipient,'Грузополучатель');
+    required(data,data.recipientContactName,'Контактное лицо получателя');
+    required(data,data.recipientPhone,'Телефон контактного лица');
     if(data.carrierDeliveryMode==='address') required(data,data.deliveryAddress,'Адрес доставки');
     else required(data,data.terminal,'Терминал транспортной компании');
   }
@@ -58,7 +60,10 @@ function makePdf(data) {
   const deliveryCondition = isCarrier ? (data.carrierDeliveryMode === 'address' ? 'адресная' : 'до терминала ТК') : 'самовывоз';
   const deliveryAddress = isCarrier ? (data.carrierDeliveryMode === 'address' ? data.deliveryAddress : data.carrierCity + ', ' + data.terminal) : 'Самовывоз со склада';
   const carrier = isCarrier ? data.carrier : 'Самовывоз';
-  const contact = isCarrier ? data.recipient + (data.recipientPhone ? ', ' + data.recipientPhone : '') : data.repName + (data.contactPhone ? ', ' + data.contactPhone : '');
+  const contact = isCarrier ? data.recipientContactName + (data.recipientPhone ? ', ' + data.recipientPhone : '') : data.repName + (data.contactPhone ? ', ' + data.contactPhone : '');
+  const signerFullName = data.customerType === 'legal' ? data.legalSigner : data.personName;
+  const signerParts = String(signerFullName || '').trim().split(/\\s+/).filter(Boolean);
+  const signer = signerParts.length > 1 ? signerParts[0] + ' ' + signerParts.slice(1).map(function (part) { return part.charAt(0).toUpperCase() + '.'; }).join('') : (signerParts[0] || '');
   const pickup = data.pickupDate ? new Date(data.pickupDate + 'T00:00:00').toLocaleDateString('ru-RU') : '';
   const originalsDestination = data.originalsMethod === 'Электронная почта' ? data.originalsEmail : data.originalsMethod === 'Почта России' ? data.originalsPostalAddress : '';
   const e = escapeHtml;
@@ -77,7 +82,7 @@ row('Транспортная компания', carrier) +
 row('Контактные данные получателя (ФИО и номер телефона)', contact, 'tall') +
 row('Способ направления оригиналов документов (ЭДО, эл. почта, Почта России)', data.originalsMethod, 'tall') +
 (originalsDestination ? row(data.originalsMethod === 'Электронная почта' ? 'Адрес электронной почты для отправки документов' : 'Адрес для отправки документов', originalsDestination, 'tall') : '') +
-`</table><p class="footer-note">* Страховка груза в обязательном порядке оформляется на сумму из счёта.</p>${pickup ? '<p class="footer-note">Планируемый приезд за товаром: ' + e(pickup) + '.</p>' : ''}<p class="signature">____________________ / ____________________</p><p class="footer-note">* При подписании заявки на отгрузку ознакомьтесь с правилами приема груза от транспортных компаний.</p></section>` +
+`</table><p class="footer-note">* Страховка груза в обязательном порядке оформляется на сумму из счёта.</p>${pickup ? '<p class="footer-note">Планируемый приезд за товаром: ' + e(pickup) + '.</p>' : ''}<p class="signature">____________________ / ${e(signer || '____________________')}</p><p class="footer-note">* При подписании заявки на отгрузку ознакомьтесь с правилами приема груза от транспортных компаний.</p></section>` +
 `<section class="page rules"><h1>ПРАВИЛА ПРИЕМА ГРУЗА ОТ ТРАНСПОРТНЫХ КОМПАНИЙ</h1><p>При получении груза на терминале ТК: НАСТОЯТЕЛЬНО СОВЕТУЕМ сначала осмотреть груз на наличие повреждений. При наличии повреждений составить акт осмотра и претензию в транспортной компании ДЛЯ ПОЛУЧЕНИЯ ПОЛНОЙ КОМПЕНСАЦИИ.</p><p>При получении груза по адресной доставке: осмотрите груз на внешние повреждения (целостность упаковки). После вскрытия при обнаружении дефектов, в течение 3 дней Вы можете подать претензию в ТК.</p><p>Если сомневаетесь в целостности доставленного заказа, ни при каких условиях не подписывайте документы без предварительного осмотра груза. В обязательном порядке проверьте груз в месте вручения в присутствии сотрудника транспортной компании.</p><h2>Порядок действий при приемке груза:</h2><ul><li>Сверить количество фактических мест указанным в Накладной. Если количество мест не совпадает — составьте акт о расхождении мест в присутствии сотрудников ТК.</li><li>Проверьте внешнюю целостность упаковки. Наличие подозрительной упаковки также является поводом к составлению акта о нарушении условий доставки.</li></ul><h2>При любых повреждениях сделайте ряд фотографий:</h2><ul><li>Общий вид подозрительной упаковки с 2 ракурсов.</li><li>Крупный план подозрительной части упаковки.</li><li>Фотография вскрытой упаковки.</li><li>При необходимости — дефекты крупным планом на содержимом или видеозапись вскрытия упаковки.</li></ul><p class="strong">При возникновении замечаний сотрудник ТК предоставляет бланк акта, в котором необходимо описать обнаруженные повреждения: повреждения, отсутствие, подмена товара, прочее.</p><p class="strong">Акт обязательно должен быть заверен синей печатью ТК либо подписью водителя при доставке до адреса. Сроки подачи жалобы составляют 3 рабочих дня с момента получения груза.</p><p class="agree">С данными по отправке согласен, __________/____________ &nbsp;&nbsp; М.П.</p></section></body></html>`;
 }
 window.getShipmentPreviewHtml = function () { return makePdf(getData()); };
