@@ -18,7 +18,8 @@ function toggleSections() {
   const delivery = data.deliveryType;
   document.querySelector('.carrier-fields').classList.toggle('hidden', delivery !== 'carrier');
   document.querySelector('.representative-fields').classList.toggle('hidden', delivery !== 'representative');
-  document.querySelector('#photo-upload').classList.toggle('hidden', data.signMethod !== 'print');
+  document.querySelector('.originals-email-fields').classList.toggle('hidden', data.originalsMethod !== 'Электронная почта');
+  document.querySelector('.originals-post-fields').classList.toggle('hidden', data.originalsMethod !== 'Почта России');
 }
 function required(data, value, label) { if (!value?.trim()) throw new Error(`Заполните поле: «${label}».`); }
 function validate(data) {
@@ -39,6 +40,8 @@ function validate(data) {
     required(data,data.repPassportIssued,'Кем и когда выдан паспорт');
   }
   required(data,data.shipmentBasis,'Счёт, договор или спецификация');
+  if(data.originalsMethod==='Электронная почта') required(data,data.originalsEmail,'Адрес электронной почты для отправки документов');
+  if(data.originalsMethod==='Почта России') required(data,data.originalsPostalAddress,'Адрес для отправки документов');
 }
 function date() {return new Intl.DateTimeFormat('ru-RU').format(new Date());}
 function docTitle() {return 'ЗАЯВКА НА ОТГРУЗКУ';}
@@ -54,6 +57,7 @@ function makePdf(data) {
   const carrier = isCarrier ? data.carrier : 'Самовывоз';
   const contact = isCarrier ? data.recipient + (data.recipientPhone ? ', ' + data.recipientPhone : '') : data.repName + (data.contactPhone ? ', ' + data.contactPhone : '');
   const pickup = data.pickupDate ? new Date(data.pickupDate + 'T00:00:00').toLocaleDateString('ru-RU') : '';
+  const originalsDestination = data.originalsMethod === 'Электронная почта' ? data.originalsEmail : data.originalsMethod === 'Почта России' ? data.originalsPostalAddress : '';
   const e = escapeHtml;
   const row = (label, value, cls = '') => '<tr class="' + cls + '"><td>' + label + '</td><td>' + e(value || '—') + '</td></tr>';
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Заявка на отгрузку</title><style>
@@ -69,6 +73,7 @@ row('Адрес доставки (город)', deliveryAddress) +
 row('Транспортная компания', carrier) +
 row('Контактные данные получателя (ФИО и номер телефона)', contact, 'tall') +
 row('Способ направления оригиналов документов (ЭДО, эл. почта, Почта России)', data.originalsMethod, 'tall') +
+(originalsDestination ? row(data.originalsMethod === 'Электронная почта' ? 'Адрес электронной почты для отправки документов' : 'Адрес для отправки документов', originalsDestination, 'tall') : '') +
 `</table><p class="footer-note">* Страховка груза в обязательном порядке оформляется на сумму из счёта.</p>${pickup ? '<p class="footer-note">Планируемый приезд за товаром: ' + e(pickup) + '.</p>' : ''}<p class="signature">____________________ / ____________________</p><p class="footer-note">* При подписании заявки на отгрузку ознакомьтесь с правилами приема груза от транспортных компаний.</p></section>` +
 `<section class="page rules"><h1>ПРАВИЛА ПРИЕМА ГРУЗА ОТ ТРАНСПОРТНЫХ КОМПАНИЙ</h1><p>При получении груза на терминале ТК: НАСТОЯТЕЛЬНО СОВЕТУЕМ сначала осмотреть груз на наличие повреждений. При наличии повреждений составить акт осмотра и претензию в транспортной компании ДЛЯ ПОЛУЧЕНИЯ ПОЛНОЙ КОМПЕНСАЦИИ.</p><p>При получении груза по адресной доставке: осмотрите груз на внешние повреждения (целостность упаковки). После вскрытия при обнаружении дефектов, в течение 3 дней Вы можете подать претензию в ТК.</p><p>Если сомневаетесь в целостности доставленного заказа, ни при каких условиях не подписывайте документы без предварительного осмотра груза. В обязательном порядке проверьте груз в месте вручения в присутствии сотрудника транспортной компании.</p><h2>Порядок действий при приемке груза:</h2><ul><li>Сверить количество фактических мест указанным в Накладной. Если количество мест не совпадает — составьте акт о расхождении мест в присутствии сотрудников ТК.</li><li>Проверьте внешнюю целостность упаковки. Наличие подозрительной упаковки также является поводом к составлению акта о нарушении условий доставки.</li></ul><h2>При любых повреждениях сделайте ряд фотографий:</h2><ul><li>Общий вид подозрительной упаковки с 2 ракурсов.</li><li>Крупный план подозрительной части упаковки.</li><li>Фотография вскрытой упаковки.</li><li>При необходимости — дефекты крупным планом на содержимом или видеозапись вскрытия упаковки.</li></ul><p class="strong">При возникновении замечаний сотрудник ТК предоставляет бланк акта, в котором необходимо описать обнаруженные повреждения: повреждения, отсутствие, подмена товара, прочее.</p><p class="strong">Акт обязательно должен быть заверен синей печатью ТК либо подписью водителя при доставке до адреса. Сроки подачи жалобы составляют 3 рабочих дня с момента получения груза.</p><p class="agree">С данными по отправке согласен, __________/____________ &nbsp;&nbsp; М.П.</p></section></body></html>`;
 }
