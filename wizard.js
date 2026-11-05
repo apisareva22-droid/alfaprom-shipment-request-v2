@@ -77,6 +77,10 @@
     });
     setError('');
     updateProgress();
+    if (currentStep === total) {
+      const preview = document.querySelector('#application-preview');
+      if (preview && window.getShipmentPreviewHtml) preview.srcdoc = window.getShipmentPreviewHtml();
+    }
     if (shouldScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
