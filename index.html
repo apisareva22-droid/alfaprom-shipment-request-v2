@@ -82,10 +82,17 @@
         <div class="fields two-col shipment-details">
           <label class="wide">Счёт, договор или спецификация<input name="shipmentBasis" placeholder="Например: счёт № 25С-573 от 21.07.2026"></label>
           <label>Плательщик доставки<select name="deliveryPayer"><option value="Получатель">Получатель</option><option value="Отправитель">Отправитель</option></select></label>
-          <label>Оригиналы документов<select name="originalsMethod"><option value="ЭДО">ЭДО</option><option value="Электронная почта">Электронная почта</option><option value="Почта России">Почта России</option></select></label>
         </div>
       </section>
       <section class="card wizard-step" data-step="4">
+        <div class="section-heading"><span>4</span><div><h2>Оригиналы документов</h2><p>Выберите наиболее удобный способ получения оригиналов: договора и закрывающих документов (УПД).</p></div></div>
+        <div class="choice-grid three">
+          <label class="choice active"><input type="radio" name="originalsMethod" value="ЭДО" checked><strong>ЭДО</strong><small>Обмен документами через систему ЭДО</small></label>
+          <label class="choice"><input type="radio" name="originalsMethod" value="Электронная почта"><strong>Электронная почта</strong><small>Получить документы по e-mail</small></label>
+          <label class="choice"><input type="radio" name="originalsMethod" value="Почта России"><strong>Почта России</strong><small>Получить бумажные оригиналы по почте</small></label>
+        </div>
+      </section>
+      <section class="card wizard-step" data-step="5">
         <div class="section-heading"><span>4</span><div><h2>Подписание</h2><p>Выберите удобный способ. PDF формируется прямо в браузере.</p></div></div>
         <div class="choice-grid three sign-methods">
           <label class="choice active"><input type="radio" name="signMethod" value="print" checked><strong>Распечатать и подписать</strong><small>Скачать PDF, подписать, затем приложить фото</small></label>
@@ -94,7 +101,7 @@
         </div>
         <div id="photo-upload" class="upload-box"><label>Фото или скан подписанного документа<input type="file" accept="image/*,.pdf" name="signedFile"></label><small id="file-name">Файл не выбран</small></div>
       </section>
-      <section class="card agreement wizard-step" data-step="5">
+      <section class="card agreement wizard-step" data-step="6">
         <label class="checkbox-line"><input type="checkbox" name="accuracy"> Подтверждаю, что сведения в заявке верны.</label>
         <button class="primary" type="submit">Сформировать PDF</button>
         <p class="form-error" id="form-error" role="alert"></p>
@@ -109,7 +116,7 @@
   <footer>АЛЬФАПРОМ · онлайн-заявка на отгрузку</footer>
   <script src="form.js?v=5"></script>
   <script src="lookup.js?v=8"></script>
-  <script src="wizard.js?v=6"></script>
+  <script src="wizard.js?v=7"></script>
   <script src="carrier.js?v=2"></script>
   <script src="passport.js?v=3"></script>
 </body>
