@@ -1,6 +1,9 @@
 const form = document.querySelector('#request-form');
 const result = document.querySelector('#result');
 let documentPdf;
+let finalizedRequestData;
+let edoLogged = false;
+const INTEGRATION_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyg0Ov5Gc632N16R61A1MySKK4jiU-Jh9AO4yoDiJvS7Y5m2FWt7emuiClrQXFrcXKrPA/exec';
 
 function getData() { return Object.fromEntries(new FormData(form).entries()); }
 function optionCards() {
@@ -80,10 +83,116 @@ row('Способ направления оригиналов документо
 window.getShipmentPreviewHtml = function () { return makePdf(getData()); };
 function printPdf(html){const w=window.open('','_blank');if(!w)return;w.document.write(html);w.document.close();w.focus();w.print();}
 optionCards();
-document.querySelector('[name="signedFile"]').addEventListener('change',e=>document.querySelector('#file-name').textContent=e.target.files[0]?.name||'Файл не выбран');
-form.addEventListener('submit',e=>{e.preventDefault();const data=getData(),error=document.querySelector('#form-error');try{validate(data);documentPdf=makePdf(data);error.textContent='';result.classList.remove('hidden');document.querySelector('#signed-upload-result').classList.add('hidden');const text=data.signMethod==='print'?'Благодарим за заполнение. Скачайте PDF, распечатайте и подпишите его. После скачивания появится поле для загрузки фото или скана подписанного документа.':data.signMethod==='edo'?'Благодарим за заполнение. Скачайте PDF и отправьте его бухгалтерии для отправки через ЭДО.':'Документ можно сохранить как PDF. Автоматическая отправка в СБИС потребует отдельного подключения после тестирования формы.';document.querySelector('#result-text').textContent=`${docTitle(data)} сформирована.`;document.querySelector('#sign-instruction').textContent=text;result.scrollIntoView({behavior:'smooth'});}catch(err){error.textContent=err.message;}});
-function openPdf() { if (!documentPdf) return; printPdf(documentPdf); if (form.querySelector('[name="signMethod"]:checked').value === 'print') { const upload = document.querySelector('#signed-upload-result'); upload.classList.remove('hidden'); upload.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
-document.querySelector('#download-pdf').addEventListener('click',openPdf);
-document.querySelector('#print-pdf').addEventListener('click',openPdf);
+const signedFilesInput = document.querySelector('[name="signedFiles"]');
+const fileName = document.querySelector('#file-name');
+const sendStatus = document.querySelector('#send-status');
+const sendButton = document.querySelector('#submit-signed-request');
 
+signedFilesInput.addEventListener('change', function () {
+  const files = Array.from(signedFilesInput.files);
+  fileName.textContent = files.length ? files.map(function (file) { return file.name; }).join(', ') : 'Файлы не выбраны';
+  sendStatus.textContent = '';
+});
+
+function fileToPayload(file) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onerror = function () { reject(new Error('Не удалось прочитать файл «' + file.name + '».')); };
+    reader.onload = function () {
+      resolve({
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64: String(reader.result).split(',')[1]
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function sendToRegistry(mode) {
+  const files = mode === 'signed' ? Array.from(signedFilesInput.files) : [];
+  if (mode === 'signed' && !files.length) throw new Error('Прикрепите хотя бы один файл с подписанной заявкой.');
+  if (files.length > 2) throw new Error('Можно прикрепить не более двух файлов.');
+
+  const payload = {
+    action: 'submit',
+    mode: mode,
+    data: finalizedRequestData || getData(),
+    files: await Promise.all(files.map(fileToPayload))
+  };
+
+  await fetch(INTEGRATION_ENDPOINT, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+}
+
+form.addEventListener('submit', function (event) {
+  event.preventDefault();
+  const data = getData();
+  const error = document.querySelector('#form-error');
+  try {
+    validate(data);
+    finalizedRequestData = data;
+    edoLogged = false;
+    documentPdf = makePdf(data);
+    error.textContent = '';
+    result.classList.remove('hidden');
+    document.querySelector('#signed-upload-result').classList.add('hidden');
+
+    const text = data.signMethod === 'print'
+      ? 'Благодарим за заполнение. Скачайте PDF, распечатайте и подпишите его. После скачивания прикрепите до двух файлов и отправьте заявку.'
+      : data.signMethod === 'edo'
+        ? 'Благодарим за заполнение. Скачайте PDF и отправьте его бухгалтерии для отправки через ЭДО.'
+        : 'Документ можно сохранить как PDF. Автоматическая отправка в СБИС потребует отдельного подключения после тестирования формы.';
+    document.querySelector('#result-text').textContent = docTitle(data) + ' сформирована.';
+    document.querySelector('#sign-instruction').textContent = text;
+    result.scrollIntoView({ behavior: 'smooth' });
+  } catch (err) {
+    error.textContent = err.message;
+  }
+});
+
+async function openPdf() {
+  if (!documentPdf) return;
+  printPdf(documentPdf);
+  const mode = form.querySelector('[name="signMethod"]:checked').value;
+
+  if (mode === 'print') {
+    const upload = document.querySelector('#signed-upload-result');
+    upload.classList.remove('hidden');
+    upload.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  if (mode === 'edo' && !edoLogged) {
+    edoLogged = true;
+    const instruction = document.querySelector('#sign-instruction');
+    try {
+      await sendToRegistry('edo');
+      instruction.textContent = 'Благодарим за заполнение. PDF скачан. Информация передана сотруднику, а файл можно отправить бухгалтерии для ЭДО.';
+    } catch (err) {
+      edoLogged = false;
+      instruction.textContent = 'PDF скачан, но не удалось передать уведомление: ' + err.message;
+    }
+  }
+}
+
+sendButton.addEventListener('click', async function () {
+  sendStatus.textContent = '';
+  sendButton.disabled = true;
+  try {
+    await sendToRegistry('signed');
+    sendStatus.textContent = 'Заявка отправлена. Сотрудник получил уведомление.';
+    sendButton.textContent = 'Заявка отправлена';
+  } catch (err) {
+    sendStatus.textContent = err.message;
+    sendButton.disabled = false;
+  }
+});
+
+document.querySelector('#download-pdf').addEventListener('click', openPdf);
+document.querySelector('#print-pdf').addEventListener('click', openPdf);
 
