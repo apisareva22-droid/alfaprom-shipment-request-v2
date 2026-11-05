@@ -2,8 +2,8 @@
   const form = document.querySelector('#request-form');
   if (!form) return;
 
-  const total = 5;
-  const labels = ['Тип покупателя', 'Данные покупателя', 'Получение товара', 'Подписание', 'Проверка заявки'];
+  const total = 6;
+  const labels = ['Тип покупателя', 'Данные покупателя', 'Получение товара', 'Оригиналы документов', 'Подписание', 'Проверка заявки'];
   let currentStep = 1;
 
   function visibleStepCard(step) {
@@ -86,7 +86,7 @@
       if (step === total) return;
       const nav = document.createElement('div');
       nav.className = 'wizard-nav';
-      nav.innerHTML = '<button type="button" class="secondary' + (step === 1 ? ' hidden' : '') + '" data-wizard-back>Назад</button><button type="button" class="primary" data-wizard-next>' + (step === 4 ? 'Проверить заявку' : 'Продолжить') + '</button>';
+      nav.innerHTML = '<button type="button" class="secondary' + (step === 1 ? ' hidden' : '') + '" data-wizard-back>Назад</button><button type="button" class="primary" data-wizard-next>' + (step === total - 1 ? 'Проверить заявку' : 'Продолжить') + '</button>';
       card.appendChild(nav);
     });
   }
