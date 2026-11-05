@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Онлайн-заявка на отгрузку АЛЬФАПРОМ">
   <title>АЛЬФАПРОМ — заявка на отгрузку</title>
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
   <header class="topbar"><div class="topbar-inner"><a class="logo" href="./" aria-label="АЛЬФАПРОМ">АЛЬФАПРОМ</a><span class="topbar-title">Оформление заявки на отгрузку</span></div></header>
@@ -101,8 +101,9 @@
         </div>
       </section>
       <section class="card agreement wizard-step" data-step="6">
-        <label class="checkbox-line"><input type="checkbox" name="accuracy"> Подтверждаю, что сведения в заявке верны.</label>
-        <button class="primary" type="submit">Проверить и сформировать PDF</button>
+        <div class="section-heading"><span>6</span><div><h2>Предварительный просмотр заявки</h2><p>Проверьте документ перед формированием PDF. При необходимости вернитесь к нужному шагу и исправьте данные.</p></div></div>
+        <iframe id="application-preview" class="application-preview" title="Предварительный просмотр заявки на отгрузку"></iframe>
+        <button class="primary" type="submit">Сформировать PDF</button>
         <p class="form-error" id="form-error" role="alert"></p>
       </section>
     </form>
@@ -114,9 +115,9 @@
     </section>
   </main>
   <footer>АЛЬФАПРОМ · онлайн-заявка на отгрузку</footer>
-  <script src="form.js?v=6"></script>
+  <script src="form.js?v=7"></script>
   <script src="lookup.js?v=8"></script>
-  <script src="wizard.js?v=7"></script>
+  <script src="wizard.js?v=8"></script>
   <script src="carrier.js?v=2"></script>
   <script src="passport.js?v=3"></script>
 </body>
