@@ -93,28 +93,28 @@
         </div>
       </section>
       <section class="card wizard-step" data-step="5">
-        <div class="section-heading"><span>4</span><div><h2>Подписание</h2><p>Выберите удобный способ. PDF формируется прямо в браузере.</p></div></div>
+        <div class="section-heading"><span>5</span><div><h2>Подписание</h2><p>Выберите удобный способ. После проверки будет сформирован PDF.</p></div></div>
         <div class="choice-grid three sign-methods">
-          <label class="choice active"><input type="radio" name="signMethod" value="print" checked><strong>Распечатать и подписать</strong><small>Скачать PDF, подписать, затем приложить фото</small></label>
-          <label class="choice"><input type="radio" name="signMethod" value="edo"><strong>Отправить через ЭДО</strong><small>Скачать PDF и передать бухгалтеру</small></label>
+          <label class="choice active"><input type="radio" name="signMethod" value="print" checked><strong>Распечатать и подписать</strong><small>Проверьте данные, скачайте PDF, подпишите и приложите фото</small></label>
+          <label class="choice"><input type="radio" name="signMethod" value="edo"><strong>Отправить через ЭДО</strong><small>Проверьте данные, скачайте PDF и передайте бухгалтеру</small></label>
           <label class="choice"><input type="radio" name="signMethod" value="sbis"><strong>Подписать через СБИС</strong><small>В тесте сформируем файл и заявку на отправку</small></label>
         </div>
-        <div id="photo-upload" class="upload-box"><label>Фото или скан подписанного документа<input type="file" accept="image/*,.pdf" name="signedFile"></label><small id="file-name">Файл не выбран</small></div>
       </section>
       <section class="card agreement wizard-step" data-step="6">
         <label class="checkbox-line"><input type="checkbox" name="accuracy"> Подтверждаю, что сведения в заявке верны.</label>
-        <button class="primary" type="submit">Сформировать PDF</button>
+        <button class="primary" type="submit">Проверить и сформировать PDF</button>
         <p class="form-error" id="form-error" role="alert"></p>
       </section>
     </form>
     <section id="result" class="result hidden" aria-live="polite">
       <h2>Документ подготовлен</h2><p id="result-text"></p>
-      <div class="result-actions"><button id="download-pdf" class="primary">Открыть для сохранения PDF</button><button id="print-pdf" class="secondary">Распечатать</button></div>
+      <div class="result-actions"><button id="download-pdf" class="primary">Скачать PDF</button><button id="print-pdf" class="secondary">Распечатать</button></div>
       <p id="sign-instruction" class="result-note"></p>
+      <div id="signed-upload-result" class="upload-box hidden"><label>Фото или скан подписанного документа<input type="file" accept="image/*,.pdf" name="signedFile"></label><small id="file-name">Файл не выбран</small></div>
     </section>
   </main>
   <footer>АЛЬФАПРОМ · онлайн-заявка на отгрузку</footer>
-  <script src="form.js?v=5"></script>
+  <script src="form.js?v=6"></script>
   <script src="lookup.js?v=8"></script>
   <script src="wizard.js?v=7"></script>
   <script src="carrier.js?v=2"></script>
