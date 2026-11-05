@@ -11,6 +11,7 @@
   let timer;
   let controller;
   let requestId = 0;
+  const cache = new Map();
 
   function closeCities() {
     cityOptions.classList.add('hidden');
@@ -61,16 +62,33 @@
     cityInput.setAttribute('aria-expanded', options.length ? 'true' : 'false');
   }
 
+  function showLoading() {
+    const status = document.createElement('div');
+    status.className = 'city-option';
+    status.setAttribute('aria-live', 'polite');
+    status.textContent = 'Ищем населённые пункты…';
+    cityOptions.replaceChildren(status);
+    cityOptions.classList.remove('hidden');
+    cityInput.setAttribute('aria-expanded', 'true');
+  }
+
   async function searchPlaces(query) {
     const value = query.trim();
-    if (value.length < 3) {
+    if (value.length < 2) {
       closeCities();
+      return;
+    }
+
+    const key = value.toLocaleLowerCase('ru');
+    if (cache.has(key)) {
+      renderCities(cache.get(key));
       return;
     }
 
     const currentRequest = ++requestId;
     if (controller) controller.abort();
     controller = new AbortController();
+    showLoading();
 
     try {
       const response = await fetch(
@@ -79,6 +97,7 @@
       );
       if (!response.ok) throw new Error('Не удалось найти населённые пункты.');
       const places = await response.json();
+      cache.set(key, places);
       if (currentRequest === requestId) renderCities(places);
     } catch (error) {
       if (error.name !== 'AbortError' && currentRequest === requestId) closeCities();
@@ -86,11 +105,11 @@
   }
 
   cityInput.addEventListener('focus', function () {
-    if (cityInput.value.trim().length >= 3) searchPlaces(cityInput.value);
+    if (cityInput.value.trim().length >= 2) searchPlaces(cityInput.value);
   });
   cityInput.addEventListener('input', function () {
     clearTimeout(timer);
-    timer = setTimeout(function () { searchPlaces(cityInput.value); }, 1000);
+    timer = setTimeout(function () { searchPlaces(cityInput.value); }, 250);
     updateRoute();
   });
   cityInput.addEventListener('blur', function () { setTimeout(closeCities, 150); });
