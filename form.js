@@ -62,7 +62,7 @@ function makePdf(data) {
   const carrier = isCarrier ? data.carrier : 'Самовывоз';
   const contact = isCarrier ? data.recipientContactName + (data.recipientPhone ? ', ' + data.recipientPhone : '') : data.repName + (data.contactPhone ? ', ' + data.contactPhone : '');
   const signerFullName = data.customerType === 'legal' ? data.legalSigner : data.personName;
-  const signerParts = String(signerFullName || '').trim().split(/\\s+/).filter(Boolean);
+  const signerParts = String(signerFullName || '').trim().split(' ').filter(Boolean);
   const signer = signerParts.length > 1 ? signerParts[0] + ' ' + signerParts.slice(1).map(function (part) { return part.charAt(0).toUpperCase() + '.'; }).join('') : (signerParts[0] || '');
   const pickup = data.pickupDate ? new Date(data.pickupDate + 'T00:00:00').toLocaleDateString('ru-RU') : '';
   const originalsDestination = data.originalsMethod === 'Электронная почта' ? data.originalsEmail : data.originalsMethod === 'Почта России' ? data.originalsPostalAddress : '';
