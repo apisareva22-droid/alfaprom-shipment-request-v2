@@ -32,7 +32,7 @@ function getPekTerminals_(location) {
     maxDimension: null,
     maxWeightPerPlace: null,
     departmentOperation: 3,
-    type: 3,
+    type: 1,
     searchRadius: 100,
     limit: 5
   });
@@ -69,8 +69,8 @@ function pekRequest_(path, payload) {
 
   const response = UrlFetchApp.fetch(PEK_API_BASE + path, {
     method: 'post',
-    contentType: 'application/json',
-    headers: { Authorization: 'Basic ' + Utilities.base64Encode(login + ':' + apiKey) },
+    contentType: 'application/json; charset=utf-8',
+    headers: { Authorization: 'Basic ' + Utilities.base64Encode(login + ':' + apiKey), Accept: 'application/json', 'Accept-Encoding': 'gzip' },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
