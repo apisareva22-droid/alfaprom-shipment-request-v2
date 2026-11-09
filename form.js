@@ -91,7 +91,7 @@ async function downloadPdf(html) {
   if (!window.html2pdf) throw new Error('Не удалось загрузить модуль формирования PDF. Проверьте подключение к интернету и повторите попытку.');
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   const source = document.createElement('div');
-  source.style.cssText = 'position:fixed;left:-10000px;top:0;width:190mm;background:#fff;';
+  source.style.cssText = 'position:absolute;left:0;top:0;width:190mm;background:#fff;z-index:-1;pointer-events:none;';
   source.innerHTML = '<style>' + parsed.querySelector('style').textContent + '</style>' + parsed.body.innerHTML;
   document.body.appendChild(source);
   try {
