@@ -94,7 +94,11 @@ function getPekTerminals_(location) {
   const seen = {};
   const terminals = (result.freeDepartments || []).concat(result.paidDepartments || [])
     .filter(function (department) {
-      if (!department.warehouseId || seen[department.warehouseId]) return false;
+      const title = String(department.divisionName || department.branchName || '') + ' ' + String(department.address || '');
+      const type = String(department.departmentType || '').toLowerCase();
+      const isPartnerOrPickupPoint = /пвз|сдэк|cdek|boxberry|боксберри|постамат|ozon|wildberries|яндекс|закр|закрыт/.test(title.toLowerCase()) || /пвз|пункт выдачи/.test(type);
+      const isCompanyTerminal = /отделение компании|терминал|склад/.test(type);
+      if (!department.warehouseId || seen[department.warehouseId] || isPartnerOrPickupPoint || !isCompanyTerminal) return false;
       seen[department.warehouseId] = true;
       return true;
     })
