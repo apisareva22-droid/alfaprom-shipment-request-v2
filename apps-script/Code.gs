@@ -14,7 +14,61 @@ function doGet(e) {
       return jsonpResponse_({ ok: false, terminals: [], error: error.message }, p.callback);
     }
   }
+  if (p.action === 'dellinTerminals') {
+    try {
+      return jsonpResponse_(getDellinTerminals_((p.location || '').trim()), p.callback);
+    } catch (error) {
+      console.error(error);
+      return jsonpResponse_({ ok: false, terminals: [], error: error.message }, p.callback);
+    }
+  }
   return response_({ ok: true, service: 'alfaprom-shipment-requests' });
+}
+
+function getDellinTerminals_(location) {
+  if (location.length < 2) throw new Error('Укажите населённый пункт.');
+
+  const properties = PropertiesService.getScriptProperties();
+  const appKey = properties.getProperty('DL_API');
+  if (!appKey) throw new Error('Добавьте DL_API в свойства сценария.');
+
+  const cache = CacheService.getScriptCache();
+  const key = 'dellin:' + location.toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '-').slice(0, 120);
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const response = UrlFetchApp.fetch('https://api.dellin.ru/v1/public/request_terminals.json', {
+    method: 'post',
+    contentType: 'application/json; charset=utf-8',
+    payload: JSON.stringify({ appkey: appKey, search: location, direction: 'arrival' }),
+    muteHttpExceptions: true
+  });
+  const httpStatus = response.getResponseCode();
+  let data;
+  try {
+    data = JSON.parse(response.getContentText());
+  } catch (error) {
+    throw new Error('Деловые Линии вернули некорректный ответ.');
+  }
+  const apiStatus = data.metadata && data.metadata.status;
+  if (httpStatus < 200 || httpStatus >= 300 || (apiStatus && apiStatus !== 200)) {
+    throw new Error((data.errors && data.errors[0] && data.errors[0].message) || 'Деловые Линии временно недоступны.');
+  }
+
+  const terminals = (data.terminals || []).map(function (terminal) {
+    return {
+      id: String(terminal.id || ''),
+      branchId: String(terminal.cityID || ''),
+      branchName: terminal.city || '',
+      name: terminal.name || 'Терминал Деловых Линий',
+      address: terminal.address || '',
+      type: 'Терминал Деловых Линий',
+      phone: ''
+    };
+  });
+  const output = { ok: true, location: location, terminals: terminals };
+  cache.put(key, JSON.stringify(output), 21600);
+  return output;
 }
 
 function getPekTerminals_(location) {
