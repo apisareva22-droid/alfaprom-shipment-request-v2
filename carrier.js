@@ -20,8 +20,8 @@
   const cityCache = new Map();
   const pekCache = new Map();
 
-  function isPekTerminalRoute() {
-    return carrier.value === 'ПЭК' && mode.value === 'terminal';
+  function isTerminalLookupRoute() {
+    return (carrier.value === 'ПЭК' || carrier.value === 'Деловые Линии') && mode.value === 'terminal';
   }
 
   function closeCities() {
@@ -48,8 +48,8 @@
     if (terminalHelp) terminalHelp.textContent = 'Выберите или укажите терминал ' + name + city + '.';
 
     clearTimeout(pekTimer);
-    if (isPekTerminalRoute() && cityInput.value.trim().length >= 2) {
-      pekTimer = setTimeout(function () { loadPekTerminals(cityInput.value); }, 450);
+    if (isTerminalLookupRoute() && cityInput.value.trim().length >= 2) {
+      pekTimer = setTimeout(function () { loadCarrierTerminals(cityInput.value); }, 450);
     } else {
       clearPekChoices();
     }
@@ -157,15 +157,15 @@
     return [item.name, item.address].filter(Boolean).join(' — ');
   }
 
-  function renderPekTerminals(result) {
+  function renderCarrierTerminals(result) {
     const terminals = (result && result.terminals) || [];
     if (!terminalSelect || !terminals.length) {
       clearPekChoices();
-      if (terminalHelp) terminalHelp.textContent = 'ПЭК не нашёл терминалы рядом. Укажите терминал вручную.';
+      if (terminalHelp) terminalHelp.textContent = 'Транспортная компания не нашла терминалы рядом. Укажите терминал вручную.';
       return;
     }
 
-    terminalSelect.replaceChildren(new Option('Выберите ближайший терминал ПЭК', ''));
+    terminalSelect.replaceChildren(new Option('Выберите ближайший терминал', ''));
     terminals.forEach(function (item) {
       const option = new Option(terminalLabel(item), item.id);
       option.dataset.label = terminalLabel(item);
@@ -175,27 +175,29 @@
     terminalInput.classList.add('hidden');
     terminalInput.value = '';
     if (warehouseId) warehouseId.value = '';
-    if (terminalHelp) terminalHelp.textContent = 'ПЭК подобрал ближайшие терминалы к указанному населённому пункту.';
+    if (terminalHelp) terminalHelp.textContent = 'Транспортная компания подобрала ближайшие терминалы к указанному населённому пункту.';
   }
 
-  async function loadPekTerminals(location) {
-    if (!isPekTerminalRoute()) return;
+  async function loadCarrierTerminals(location) {
+    if (!isTerminalLookupRoute()) return;
     const normalized = location.trim();
-    const key = normalized.toLocaleLowerCase('ru');
+    const selectedCarrier = carrier.value;
+    const key = selectedCarrier + ':' + normalized.toLocaleLowerCase('ru');
     if (pekCache.has(key)) {
-      renderPekTerminals(pekCache.get(key));
+      renderCarrierTerminals(pekCache.get(key));
       return;
     }
-    if (terminalHelp) terminalHelp.textContent = 'Подбираем ближайшие терминалы ПЭК…';
+    if (terminalHelp) terminalHelp.textContent = 'Подбираем ближайшие терминалы ' + selectedCarrier + '…';
 
     try {
-      const result = await getJsonp(endpoint + '?action=pekTerminals&location=' + encodeURIComponent(normalized));
-      if (!isPekTerminalRoute() || cityInput.value.trim() !== normalized) return;
+      const action = selectedCarrier === 'ПЭК' ? 'pekTerminals' : 'dellinTerminals';
+      const result = await getJsonp(endpoint + '?action=' + action + '&location=' + encodeURIComponent(normalized));
+      if (!isTerminalLookupRoute() || carrier.value !== selectedCarrier || cityInput.value.trim() !== normalized) return;
       pekCache.set(key, result);
-      renderPekTerminals(result);
+      renderCarrierTerminals(result);
     } catch (error) {
       clearPekChoices();
-      if (terminalHelp) terminalHelp.textContent = 'Не удалось подобрать терминалы ПЭК. Укажите терминал вручную.';
+      if (terminalHelp) terminalHelp.textContent = 'Не удалось подобрать терминалы. Укажите терминал вручную.';
     }
   }
 
