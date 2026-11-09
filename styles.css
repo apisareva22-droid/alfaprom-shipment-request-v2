@@ -32,3 +32,13 @@ label{color:#374151;font-size:13px}input,textarea,select{min-height:44px;border-
 
 .application-preview{display:block;width:100%;height:660px;margin:4px 0 22px;border:1px solid #dce1e6;border-radius:13px;background:#fff}
 @media(max-width:650px){.application-preview{height:520px;margin-bottom:18px}}
+
+
+/* Styled replacement for browser-native carrier and terminal menus. */
+.dropdown-native{display:none!important}
+.custom-dropdown{position:relative;margin-top:6px}
+.custom-dropdown-trigger{position:relative;width:100%;min-height:44px;padding:10px 42px 10px 11px;border:1px solid #dce1e6;border-radius:11px;background:#fff;color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s,background-color .15s}
+.custom-dropdown-trigger::after{content:'';position:absolute;right:16px;top:50%;width:8px;height:8px;border-right:2px solid #77808b;border-bottom:2px solid #77808b;transform:translateY(-70%) rotate(45deg);transition:transform .16s ease,border-color .16s}
+.custom-dropdown-trigger:hover{border-color:#b9c2cc;background:#fffaf4}.custom-dropdown.open .custom-dropdown-trigger,.custom-dropdown-trigger:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 4px #fff0e2;background:#fff}.custom-dropdown.open .custom-dropdown-trigger::after{transform:translateY(-30%) rotate(225deg);border-color:var(--orange)}.custom-dropdown-trigger.is-placeholder{color:#9ba3ae}
+.custom-dropdown-menu{position:absolute;z-index:12;top:calc(100% + 6px);left:0;right:0;max-height:248px;overflow:auto;padding:6px;border:1px solid #f6b975;border-radius:12px;background:#fff;box-shadow:0 14px 32px rgba(27,36,48,.17)}
+.custom-dropdown-option{display:block;width:100%;padding:10px;border:0;border-radius:8px;background:transparent;color:var(--text);font:650 14px/1.35 inherit;text-align:left;cursor:pointer}.custom-dropdown-option:hover,.custom-dropdown-option:focus{outline:none;background:#fff1e3;color:#9a4c00}.custom-dropdown-option.selected{background:#fff7ed;color:#9a4c00}.custom-dropdown-option:disabled{color:#9ba3ae;cursor:default;background:transparent}
