@@ -75,7 +75,7 @@ function getPekTerminals_(location) {
   if (location.length < 2) throw new Error('Укажите населённый пункт.');
 
   const cache = CacheService.getScriptCache();
-  const key = 'pek:' + location.toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '-').slice(0, 120);
+  const key = 'pek:v2:' + location.toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '-').slice(0, 120);
   const cached = cache.get(key);
   if (cached) return JSON.parse(cached);
 
