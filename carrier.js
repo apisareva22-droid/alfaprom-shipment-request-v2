@@ -10,7 +10,75 @@
   const terminalHelp = document.querySelector('#terminal-help');
   const carrier = document.querySelector('[name="carrier"]');
   const endpoint = 'https://script.google.com/macros/s/AKfycbyg0Ov5Gc632N16R61A1MySKK4jiU-Jh9AO4yoDiJvS7Y5m2FWt7emuiClrQXFrcXKrPA/exec';
+  const carrierDropdown = setupDropdown(carrier, 'Выберите транспортную компанию');
+  const terminalDropdown = setupDropdown(terminalSelect, 'Выберите ближайший терминал');
   if (!cityInput || !cityOptions || !mode || !terminal || !address) return;
+
+  function setupDropdown(select, placeholder) {
+    if (!select) return null;
+    const dropdown = document.createElement('div');
+    const trigger = document.createElement('button');
+    const menu = document.createElement('div');
+    dropdown.className = 'custom-dropdown' + (select.classList.contains('hidden') ? ' hidden' : '');
+    trigger.type = 'button';
+    trigger.className = 'custom-dropdown-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    menu.className = 'custom-dropdown-menu hidden';
+    menu.setAttribute('role', 'listbox');
+    dropdown.append(trigger, menu);
+    select.classList.add('dropdown-native');
+    select.insertAdjacentElement('afterend', dropdown);
+
+    function close() {
+      menu.classList.add('hidden');
+      trigger.setAttribute('aria-expanded', 'false');
+      dropdown.classList.remove('open');
+    }
+    function render() {
+      const selected = select.options[select.selectedIndex];
+      trigger.textContent = selected && selected.value ? selected.textContent : placeholder;
+      trigger.classList.toggle('is-placeholder', !(selected && selected.value));
+      menu.replaceChildren();
+      Array.from(select.options).forEach(function (option) {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'custom-dropdown-option' + (option.selected ? ' selected' : '');
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+        item.textContent = option.textContent;
+        item.disabled = option.disabled;
+        item.addEventListener('click', function () {
+          select.value = option.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          close();
+        });
+        menu.appendChild(item);
+      });
+    }
+    trigger.addEventListener('click', function () {
+      const willOpen = menu.classList.contains('hidden');
+      document.querySelectorAll('.custom-dropdown-menu').forEach(function (other) {
+        if (other !== menu) other.classList.add('hidden');
+      });
+      document.querySelectorAll('.custom-dropdown').forEach(function (other) {
+        if (other !== dropdown) other.classList.remove('open');
+      });
+      menu.classList.toggle('hidden', !willOpen);
+      trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      dropdown.classList.toggle('open', willOpen);
+    });
+    document.addEventListener('click', function (event) {
+      if (!dropdown.contains(event.target)) close();
+    });
+    select.addEventListener('change', render);
+    render();
+    return {
+      render: render,
+      setVisible: function (visible) { dropdown.classList.toggle('hidden', !visible); if (!visible) close(); }
+    };
+  }
+
 
   let cityTimer;
   let pekTimer;
@@ -33,6 +101,7 @@
     if (!terminalSelect) return;
     terminalSelect.replaceChildren(new Option('Выберите терминал ПЭК', ''));
     terminalSelect.classList.add('hidden');
+    if (terminalDropdown) terminalDropdown.setVisible(false);
     terminalInput.classList.remove('hidden');
     if (warehouseId) warehouseId.value = '';
   }
@@ -172,6 +241,7 @@
       terminalSelect.add(option);
     });
     terminalSelect.classList.remove('hidden');
+    if (terminalDropdown) { terminalDropdown.setVisible(true); terminalDropdown.render(); }
     terminalInput.classList.add('hidden');
     terminalInput.value = '';
     if (warehouseId) warehouseId.value = '';
