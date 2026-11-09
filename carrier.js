@@ -11,6 +11,7 @@
   const carrier = document.querySelector('[name="carrier"]');
   const endpoint = 'https://script.google.com/macros/s/AKfycbyg0Ov5Gc632N16R61A1MySKK4jiU-Jh9AO4yoDiJvS7Y5m2FWt7emuiClrQXFrcXKrPA/exec';
   const carrierDropdown = setupDropdown(carrier, 'Выберите транспортную компанию');
+  const modeDropdown = setupDropdown(mode, 'Выберите способ доставки');
   const terminalDropdown = setupDropdown(terminalSelect, 'Выберите ближайший терминал');
   if (!cityInput || !cityOptions || !mode || !terminal || !address) return;
 
