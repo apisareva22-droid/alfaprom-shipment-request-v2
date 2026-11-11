@@ -42,3 +42,16 @@ label{color:#374151;font-size:13px}input,textarea,select{min-height:44px;border-
 .custom-dropdown-trigger:hover{border-color:#b9c2cc;background:#fffaf4}.custom-dropdown.open .custom-dropdown-trigger,.custom-dropdown-trigger:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 4px #fff0e2;background:#fff}.custom-dropdown.open .custom-dropdown-trigger::after{transform:translateY(-30%) rotate(225deg);border-color:var(--orange)}.custom-dropdown-trigger.is-placeholder{color:#9ba3ae}
 .custom-dropdown-menu{position:absolute;z-index:12;top:calc(100% + 6px);left:0;right:0;max-height:248px;overflow:auto;padding:6px;border:1px solid #f6b975;border-radius:12px;background:#fff;box-shadow:0 14px 32px rgba(27,36,48,.17)}
 .custom-dropdown-option{display:block;width:100%;padding:10px;border:0;border-radius:8px;background:transparent;color:var(--text);font:650 14px/1.35 inherit;text-align:left;cursor:pointer}.custom-dropdown-option:hover,.custom-dropdown-option:focus{outline:none;background:#fff1e3;color:#9a4c00}.custom-dropdown-option.selected{background:#fff7ed;color:#9a4c00}.custom-dropdown-option:disabled{color:#9ba3ae;cursor:default;background:transparent}
+
+
+/* Signed-files uploader uses the same visual language as the form. */
+.upload-box{padding:20px;margin-top:20px}
+.upload-title{margin:0 0 13px!important;color:var(--ink)!important;font-size:14px;font-weight:800}
+.file-picker{display:flex;align-items:center;gap:11px;min-height:45px;width:max-content;max-width:100%;font-weight:650;cursor:pointer}
+.file-picker input{position:absolute;width:1px;height:1px;min-height:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;padding:0}
+.file-picker-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 15px;border-radius:10px;background:#fff;color:#a65300;border:1px solid #f1bd7d;font-size:13px;font-weight:800;box-shadow:0 3px 8px rgba(184,104,22,.09);transition:background .15s,border-color .15s,transform .15s}
+.file-picker:hover .file-picker-button,.file-picker:focus-within .file-picker-button{background:#fff1e3;border-color:var(--orange);transform:translateY(-1px)}
+.file-picker-name{overflow:hidden;max-width:480px;color:var(--muted);font-size:13px;font-weight:600;white-space:nowrap;text-overflow:ellipsis}
+.upload-actions{margin-top:20px;padding-top:17px;border-top:1px solid #f3dbc4}
+.upload-box #send-status{margin:12px 0 0}
+@media(max-width:650px){.file-picker{width:100%;align-items:flex-start;flex-direction:column;gap:8px}.file-picker-name{max-width:100%;white-space:normal}.upload-actions .primary{width:100%}}
