@@ -90,7 +90,7 @@
   const pekCache = new Map();
 
   function isTerminalLookupRoute() {
-    return (carrier.value === 'ПЭК' || carrier.value === 'Деловые Линии') && mode.value === 'terminal';
+    return ['ПЭК', 'Деловые Линии', 'СДЭК', 'ЖелДорЭкспедиция'].indexOf(carrier.value) !== -1 && mode.value === 'terminal';
   }
 
   function closeCities() {
@@ -261,7 +261,8 @@
     if (terminalHelp) terminalHelp.textContent = 'Подбираем ближайшие терминалы ' + selectedCarrier + '…';
 
     try {
-      const action = selectedCarrier === 'ПЭК' ? 'pekTerminals' : 'dellinTerminals';
+      const actionByCarrier = { 'ПЭК': 'pekTerminals', 'Деловые Линии': 'dellinTerminals', 'СДЭК': 'cdekTerminals', 'ЖелДорЭкспедиция': 'jdeTerminals' };
+      const action = actionByCarrier[selectedCarrier];
       const result = await getJsonp(endpoint + '?action=' + action + '&location=' + encodeURIComponent(normalized));
       if (!isTerminalLookupRoute() || carrier.value !== selectedCarrier || cityInput.value.trim() !== normalized) return;
       pekCache.set(key, result);
