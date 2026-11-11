@@ -55,3 +55,11 @@ label{color:#374151;font-size:13px}input,textarea,select{min-height:44px;border-
 .upload-actions{margin-top:20px;padding-top:17px;border-top:1px solid #f3dbc4}
 .upload-box #send-status{margin:12px 0 0}
 @media(max-width:650px){.file-picker{width:100%;align-items:flex-start;flex-direction:column;gap:8px}.file-picker-name{max-width:100%;white-space:normal}.upload-actions .primary{width:100%}}
+
+
+/* Branded scrollbars for long option lists. */
+.custom-dropdown-menu,.city-suggestions{scrollbar-width:thin;scrollbar-color:var(--orange) transparent;scrollbar-gutter:stable}
+.custom-dropdown-menu::-webkit-scrollbar,.city-suggestions::-webkit-scrollbar{width:12px}
+.custom-dropdown-menu::-webkit-scrollbar-track,.city-suggestions::-webkit-scrollbar-track{margin:8px 3px 8px 0;border-radius:999px;background:transparent}
+.custom-dropdown-menu::-webkit-scrollbar-thumb,.city-suggestions::-webkit-scrollbar-thumb{border:3px solid #fff;border-radius:999px;background:var(--orange);background-clip:padding-box}
+.custom-dropdown-menu::-webkit-scrollbar-thumb:hover,.city-suggestions::-webkit-scrollbar-thumb:hover{background:#d96c00;background-clip:padding-box}
