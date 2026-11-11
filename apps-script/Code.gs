@@ -22,6 +22,22 @@ function doGet(e) {
       return jsonpResponse_({ ok: false, terminals: [], error: error.message }, p.callback);
     }
   }
+  if (p.action === 'cdekTerminals') {
+    try {
+      return jsonpResponse_(getCdekTerminals_((p.location || '').trim()), p.callback);
+    } catch (error) {
+      console.error(error);
+      return jsonpResponse_({ ok: false, terminals: [], error: error.message }, p.callback);
+    }
+  }
+  if (p.action === 'jdeTerminals') {
+    try {
+      return jsonpResponse_(getJdeTerminals_((p.location || '').trim()), p.callback);
+    } catch (error) {
+      console.error(error);
+      return jsonpResponse_({ ok: false, terminals: [], error: error.message }, p.callback);
+    }
+  }
   return response_({ ok: true, service: 'alfaprom-shipment-requests' });
 }
 
@@ -69,6 +85,181 @@ function getDellinTerminals_(location) {
   const output = { ok: true, location: location, terminals: terminals };
   cache.put(key, JSON.stringify(output), 21600);
   return output;
+}
+
+function getCdekTerminals_(location) {
+  if (location.length < 2) throw new Error('Укажите населённый пункт.');
+
+  const cache = CacheService.getScriptCache();
+  const key = 'cdek:ltd:' + cacheKey_(location);
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const token = getCdekToken_();
+  const cities = cdekGet_('/location/cities?country_codes=RU&size=10&city=' + encodeURIComponent(cityName_(location)), token);
+  if (!cities.length) throw new Error('СДЭК не нашёл указанный населённый пункт.');
+
+  const wanted = normalizeName_(cityName_(location));
+  const city = cities.filter(function (item) {
+    return normalizeName_(item.city || '') === wanted;
+  })[0] || cities[0];
+
+  const points = cdekGet_('/deliverypoints?city_code=' + encodeURIComponent(city.code) + '&type=ALL&size=1000', token);
+  const terminals = points.filter(function (point) {
+    return point.is_ltl === true &&
+      point.is_handout !== false &&
+      point.is_marketplace !== true &&
+      String(point.type || '').toUpperCase() !== 'POSTAMAT';
+  }).map(function (point) {
+    return {
+      id: String(point.code || ''),
+      branchId: String(city.code || ''),
+      branchName: city.city || location,
+      name: point.name || 'Грузовой терминал СДЭК',
+      address: point.location && point.location.address_full || point.address || '',
+      type: point.type || 'Грузовой терминал СДЭК',
+      phone: point.phones && point.phones[0] && point.phones[0].number || ''
+    };
+  });
+
+  const output = { ok: true, location: location, terminals: terminals };
+  cache.put(key, JSON.stringify(output), 21600);
+  return output;
+}
+
+function getCdekToken_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('cdek:token');
+  if (cached) return cached;
+
+  const properties = PropertiesService.getScriptProperties();
+  const clientId = properties.getProperty('SDEK_IDENT');
+  const clientSecret = properties.getProperty('SDEK_PAROL');
+  if (!clientId || !clientSecret) throw new Error('Добавьте SDEK_IDENT и SDEK_PAROL в свойства сценария.');
+
+  const response = UrlFetchApp.fetch('https://api.cdek.ru/v2/oauth/token', {
+    method: 'post',
+    payload: {
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret
+    },
+    muteHttpExceptions: true
+  });
+  let result;
+  try {
+    result = JSON.parse(response.getContentText());
+  } catch (error) {
+    throw new Error('СДЭК вернул некорректный ответ при авторизации.');
+  }
+  if (response.getResponseCode() < 200 || response.getResponseCode() >= 300 || !result.access_token) {
+    throw new Error(result.message || 'Не удалось авторизоваться в СДЭК.');
+  }
+
+  const ttl = Math.max(60, Math.min(Number(result.expires_in || 3600) - 120, 3300));
+  cache.put('cdek:token', result.access_token, ttl);
+  return result.access_token;
+}
+
+function cdekGet_(path, token) {
+  const response = UrlFetchApp.fetch('https://api.cdek.ru/v2' + path, {
+    headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+    muteHttpExceptions: true
+  });
+  let result;
+  try {
+    result = JSON.parse(response.getContentText());
+  } catch (error) {
+    throw new Error('СДЭК вернул некорректный ответ.');
+  }
+  if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
+    const message = result && (result.message || result.error && result.error.message);
+    throw new Error(message || 'СДЭК временно недоступен.');
+  }
+  return result;
+}
+
+function getJdeTerminals_(location) {
+  if (location.length < 2) throw new Error('Укажите населённый пункт.');
+
+  const cache = CacheService.getScriptCache();
+  const key = 'jde:' + cacheKey_(location);
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const cities = jdeGet_('/geo/SearchCity?mode=2');
+  const wanted = normalizeName_(cityName_(location));
+  const city = cities.filter(function (item) {
+    return normalizeName_(item.title || '') === wanted;
+  })[0] || cities.filter(function (item) {
+    return normalizeName_(item.title || '').indexOf(wanted) === 0;
+  })[0];
+
+  if (!city || !city.kladr_code) throw new Error('ЖДЭ не нашла указанный населённый пункт.');
+
+  const terminals = jdeGet_('/geo/MstByKladr?' + toQuery_({
+    kladr_code: city.kladr_code,
+    mst_count: 10,
+    mst_out: 1,
+    mst_distance: 150000,
+    near_kg: 0
+  })).filter(function (item) {
+    return item.output === 1 && item.MST_PR_VIRT !== 1;
+  }).map(function (item) {
+    return {
+      id: String(item.code || ''),
+      branchId: String(city.code || ''),
+      branchName: item.title || city.title || location,
+      name: item.title || 'Терминал ЖелДорЭкспедиции',
+      address: item.addr || '',
+      type: 'Грузовой терминал ЖелДорЭкспедиции',
+      phone: ''
+    };
+  });
+
+  const output = { ok: true, location: location, terminals: terminals };
+  cache.put(key, JSON.stringify(output), 21600);
+  return output;
+}
+
+function jdeGet_(path) {
+  const properties = PropertiesService.getScriptProperties();
+  const user = properties.getProperty('JDE_IDENT');
+  const token = properties.getProperty('JDE_API');
+  if (!user || !token) throw new Error('Добавьте JDE_IDENT и JDE_API в свойства сценария.');
+
+  const separator = path.indexOf('?') === -1 ? '?' : '&';
+  const response = UrlFetchApp.fetch('https://api.jde.ru/vD' + path + separator + toQuery_({ user: user, token: token }), {
+    muteHttpExceptions: true
+  });
+  let result;
+  try {
+    result = JSON.parse(response.getContentText());
+  } catch (error) {
+    throw new Error('ЖДЭ вернула некорректный ответ.');
+  }
+  if (response.getResponseCode() < 200 || response.getResponseCode() >= 300 || !Array.isArray(result)) {
+    throw new Error(result && (result.message || result.error) || 'ЖДЭ временно недоступна.');
+  }
+  return result;
+}
+
+function cityName_(location) {
+  return String(location || '').split('—')[0].trim();
+}
+
+function normalizeName_(value) {
+  return String(value || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]/gi, '');
+}
+
+function cacheKey_(value) {
+  return String(value || '').toLowerCase().replace(/[^a-zа-яё0-9]+/gi, '-').slice(0, 120);
+}
+
+function toQuery_(params) {
+  return Object.keys(params).map(function (key) {
+    return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
+  }).join('&');
 }
 
 function getPekTerminals_(location) {
