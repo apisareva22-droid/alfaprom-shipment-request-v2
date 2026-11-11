@@ -87,25 +87,32 @@ row('Способ направления оригиналов документо
 }
 window.getShipmentPreviewHtml = function () { return makePdf(getData()); };
 function printPdf(html){const w=window.open('','_blank');if(!w)return;w.document.write(html);w.document.close();w.focus();w.print();}
-async function downloadPdf(html) {
-  if (!window.html2pdf) throw new Error('Не удалось загрузить модуль формирования PDF. Проверьте подключение к интернету и повторите попытку.');
-  const parsed = new DOMParser().parseFromString(html, 'text/html');
-  const source = document.createElement('div');
-  source.setAttribute('aria-hidden', 'true');
-  source.style.cssText = 'position:fixed;left:-3000px;top:0;width:190mm;background:#fff;pointer-events:none;';
-  source.innerHTML = '<style>' + parsed.querySelector('style').textContent + '</style>' + parsed.body.innerHTML;
-  document.body.appendChild(source);
-  try {
-    await html2pdf().set({
-      margin: 0,
-      filename: 'Заявка на отгрузку.pdf',
-      pagebreak: { mode: ['css', 'legacy'] },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    }).from(source).save();
-  } finally {
-    source.remove();
+async function downloadPdf() {
+  if (!window.html2canvas || !window.jspdf) throw new Error('Не удалось загрузить модуль формирования PDF. Проверьте подключение к интернету и повторите попытку.');
+  const preview = document.querySelector('#application-preview');
+  const source = preview && preview.contentDocument && preview.contentDocument.body;
+  if (!source || !source.children.length) throw new Error('Предварительный просмотр ещё не готов. Вернитесь к проверке заявки и повторите скачивание.');
+
+  const canvas = await html2canvas(source, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    windowWidth: source.scrollWidth,
+    windowHeight: source.scrollHeight
+  });
+  const pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const imageHeight = canvas.height * pageWidth / canvas.width;
+  const image = canvas.toDataURL('image/jpeg', 0.96);
+  let offset = 0;
+
+  while (offset < imageHeight) {
+    if (offset > 0) pdf.addPage();
+    pdf.addImage(image, 'JPEG', 0, -offset, pageWidth, imageHeight);
+    offset += pageHeight;
   }
+  pdf.save('Заявка на отгрузку.pdf');
 }
 
 optionCards();
@@ -211,7 +218,7 @@ async function downloadDocument() {
   button.disabled = true;
   button.textContent = 'Подготавливаем PDF…';
   try {
-    await downloadPdf(documentPdf);
+    await downloadPdf();
     await afterDocumentAccess();
   } catch (err) {
     instruction.textContent = err.message;
