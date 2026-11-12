@@ -47,6 +47,7 @@
   }
   dropdown(carrier,'Выберите транспортную компанию');dropdown(mode,'Выберите способ доставки');
   const terminalMenu=dropdown(select,'Выберите ближайший терминал');
+  dropdown(document.querySelector('[name="recipientType"]'),'Выберите тип грузополучателя');
   function clearTerminals(){
     ++routeRevision;clearTimeout(routeTimer);
     form.dataset.terminalLoading='false';terminal.value='';idField.value='';terminal.disabled=false;
