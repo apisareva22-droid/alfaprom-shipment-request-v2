@@ -6,6 +6,11 @@ const PEK_API_BASE = 'https://kabinet.pecom.ru/api/v1';
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
+  if(p.action === 'health') return jsonpResponse_({ok:true,protocol:2,service:'alfaprom-shipment-requests'},p.callback);
+  if(p.action === 'requestStatus') {
+    try { return jsonpResponse_(getRequestStatus_(p),p.callback); }
+    catch(error) { return jsonpResponse_({ok:false,error:'Не удалось проверить приём заявки. Повторите попытку.'},p.callback); }
+  }
   if (p.action === 'pekTerminals') {
     try {
       return jsonpResponse_(getPekTerminals_((p.location || '').trim()), p.callback);
@@ -38,7 +43,7 @@ function doGet(e) {
       return jsonpResponse_({ ok: false, terminals: [], error: error.message }, p.callback);
     }
   }
-  return response_({ ok: true, service: 'alfaprom-shipment-requests' });
+  return jsonpResponse_({ok:true,protocol:2,service:'alfaprom-shipment-requests'},p.callback);
 }
 
 function getDellinTerminals_(location) {
@@ -345,97 +350,246 @@ function jsonpResponse_(payload, callback) {
     .setMimeType(safeCallback ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
 }
 
-function doPost(e) {
+function statusCredentials_(request) {
+  return /^[a-f0-9-]{36}$/i.test(String(request.submissionId || '')) && /^[a-f0-9]{32}$/i.test(String(request.statusToken || ''));
+}
+function digest_(text) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text)).replace(/=+$/g,'');
+}
+function statusCacheKey_(request) { return 'status:v2:' + request.submissionId + ':' + digest_(request.statusToken); }
+function requestsSheet_() {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(REQUESTS_SHEET);
+  if (!sheet) throw new Error('Не найден реестр заявок. Обратитесь к менеджеру.');
+  return sheet;
+}
+function findSubmission_(sheet, submissionId) {
+  if (sheet.getLastRow() < 2) return null;
+  const cell = sheet.getRange(2,14,sheet.getLastRow()-1,1).createTextFinder(submissionId).matchEntireCell(true).findNext();
+  return cell ? cell.getRow() : null;
+}
+function getRequestStatus_(request) {
+  if (!statusCredentials_(request)) return {ok:false,error:'Некорректный идентификатор подтверждения.'};
+  const cached = CacheService.getScriptCache().get(statusCacheKey_(request));
+  if (cached) return JSON.parse(cached);
+  const sheet = requestsSheet_(), row = findSubmission_(sheet,request.submissionId);
+  if (!row) return {ok:true,received:false};
+  const record = sheet.getRange(row,1,1,18).getValues()[0];
+  if (record[14] !== digest_(request.statusToken)) return {ok:true,received:false};
+  return {ok:true,received:true,requestId:String(record[0]),notification:record[15] || 'pending'};
+}
+function decodeAttachment_(file, generated) {
+  if (!file || typeof file.name !== 'string' || file.name.length > 200 || typeof file.base64 !== 'string') throw new Error('Некорректный файл.');
+  const name = file.name.replace(/[\/\\\x00-\x1f]/g,'_');
+  const ext = name.split('.').pop().toLowerCase();
+  const mime = ShipmentRules.mime[ext];
+  const limit = generated ? 8*1024*1024 : ShipmentRules.maxFileBytes;
+  if (!mime || file.mimeType !== mime || (generated && ext !== 'pdf')) throw new Error('Допустимы только PDF, JPG и PNG.');
+  if (file.base64.length > Math.ceil(limit/3)*4+4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.base64)) throw new Error('Файл слишком большой или повреждён.');
+  const bytes = Utilities.base64Decode(file.base64);
+  if (!bytes.length || bytes.length > limit) throw new Error('Файл должен быть непустым и не больше ' + (generated ? 8 : 10) + ' МБ.');
+  const u = bytes.map(function(b){return (b+256)%256;});
+  const pdf = u[0]===37 && u[1]===80 && u[2]===68 && u[3]===70 && u[4]===45;
+  const jpg = u[0]===255 && u[1]===216 && u[2]===255;
+  const png = u[0]===137 && u[1]===80 && u[2]===78 && u[3]===71 && u[4]===13 && u[5]===10 && u[6]===26 && u[7]===10;
+  if (!(ext==='pdf'?pdf:ext==='png'?png:jpg)) throw new Error('Содержимое файла не соответствует его формату.');
+  return {name:name,mime:mime,bytes:bytes};
+}
+function saveFileOnce_(folder, file) {
+  const existing=folder.getFilesByName(file.name);
+  if(existing.hasNext())return existing.next();
+  return folder.createFile(Utilities.newBlob(file.bytes,file.mime,file.name));
+}
+function sheetText_(value) {
+  const s = String(value == null ? '' : value);
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
+function saveRequest_(request) {
+  if (request.protocol !== 2 || !statusCredentials_(request)) throw new Error('Обновите страницу перед отправкой заявки.');
+  if (['signed','edo'].indexOf(request.mode)<0) throw new Error('Неизвестный способ подписания.');
+  const data=request.data;
+  if (!data || typeof data!=='object' || Array.isArray(data)) throw new Error('Не переданы данные заявки.');
+  const issues=ShipmentRules.errors(data);
+  if(issues.length)throw new Error(issues[0].message);
+  if((request.mode==='edo')!==(data.signMethod==='edo'))throw new Error('Способ подписания не совпадает с заявкой.');
+  if(!Array.isArray(request.files)||request.files.length>MAX_FILES||(request.mode==='signed'&&!request.files.length)||(request.mode==='edo'&&request.files.length))throw new Error('Для подписанной заявки прикрепите один или два файла.');
+  const files=request.files.map(function(file){return decodeAttachment_(file,false);});
+  const names={};files.forEach(function(file){if(names[file.name])throw new Error('Файлы должны иметь разные имена.');names[file.name]=true;});
+  if(files.reduce(function(sum,file){return sum+file.bytes.length;},0)>ShipmentRules.maxTotalBytes)throw new Error('Общий размер вложений превышает 20 МБ.');
+  const documentFile=decodeAttachment_(request.generatedPdf,true);
+  documentFile.name='Заявка на отгрузку — сформированная.pdf';
+  const lock=LockService.getScriptLock();
+  lock.waitLock(30000);
+  let result, row, sheet, folder;
   try {
-    const request = JSON.parse((e.postData && e.postData.contents) || '{}');
-    if (request.action !== 'submit') throw new Error('Неизвестное действие.');
-
-    const result = saveRequest_(request);
-    return response_({ ok: true, requestId: result.id });
-  } catch (error) {
-    console.error(error);
-    return response_({ ok: false, error: error.message });
+    sheet=requestsSheet_();
+    if(sheet.getMaxColumns()<18)sheet.insertColumnsAfter(sheet.getMaxColumns(),18-sheet.getMaxColumns());
+    const existing=findSubmission_(sheet,request.submissionId);
+    if(existing){
+      const record=sheet.getRange(existing,1,1,18).getValues()[0];
+      if(record[14]!==digest_(request.statusToken))throw new Error('Идентификатор заявки уже используется.');
+      return {ok:true,received:true,requestId:String(record[0]),notification:record[15]||'pending'};
+    }
+    sheet.getRange(1,14,1,5).setValues([['Идентификатор отправки','Ключ подтверждения (хеш)','Уведомление','Папка заявки','Обновление уведомления']]);
+    const id=request.submissionId.replace(/-/g,'').slice(0,12).toUpperCase();
+    const root=DriveApp.getFolderById(DRIVE_FOLDER_ID),folderName='Заявка '+id;
+    const folders=root.getFoldersByName(folderName);folder=folders.hasNext()?folders.next():root.createFolder(folderName);
+    const documentUrl=saveFileOnce_(folder,documentFile).getUrl();
+    const links=files.map(function(file,index){file.name=(index+1)+' — '+file.name;return saveFileOnce_(folder,file).getUrl();});
+    const details={name:'Данные заявки.json',mime:'application/json',bytes:Utilities.newBlob(JSON.stringify(data,null,2)).getBytes()};
+    saveFileOnce_(folder,details);
+    const createdAt=new Date(), buyer=data.customerType==='legal'?data.legalName:data.personName;
+    const recipient=data.deliveryType==='carrier'?ShipmentRules.recipient(data).name:data.repName;
+    const status=request.mode==='edo'?'Подготовлена для ЭДО; подпись и отправка через оператора выполняются клиентом':'Подписанная заявка принята';
+    sheet.appendRow([id,createdAt,sheetText_(data.customerType==='legal'?data.legalInn:''),sheetText_(buyer),data.customerType==='legal'?'Юридическое лицо / ИП':'Физическое лицо',data.deliveryType==='carrier'?'Транспортная компания':'Самовывоз',sheetText_(data.deliveryType==='carrier'?(data.carrier==='Другая'?data.carrierOther:data.carrier):''),sheetText_(recipient),status,documentUrl,links.join('\n'),'',createdAt,request.submissionId,digest_(request.statusToken),'pending',folder.getUrl(),createdAt]);
+    row=sheet.getLastRow();SpreadsheetApp.flush();
+    result={ok:true,received:true,requestId:id,notification:'pending'};
+  } finally {lock.releaseLock();}
+  try {
+    const buyer=data.customerType==='legal'?data.legalName:data.personName;
+    sendTelegram_(buildMessage_(result.requestId,buyer,request.mode==='edo'?'Заявка подготовлена для ЭДО':'Подписанная заявка принята',folder.getUrl(),files.length));
+    result.notification='sent';
+  } catch(error) {
+    // A notification failure must never roll back or duplicate a saved request.
+    console.error('Не удалось отправить уведомление по заявке '+result.requestId);
+    result.notification='failed';
+  }
+  try{sheet.getRange(row,16).setValue(result.notification);sheet.getRange(row,18).setValue(new Date());}catch(error){console.error('Не удалось обновить статус уведомления '+result.requestId);}
+  return result;
+}
+function doPost(e) {
+  let request;
+  try {
+    const contents=(e&&e.postData&&e.postData.contents)||'';
+    if(contents.length>42*1024*1024)throw new Error('Слишком большой размер отправки.');
+    request=JSON.parse(contents||'{}');
+    if(request.action!=='submit')throw new Error('Неизвестное действие.');
+    const saved=saveRequest_(request);
+    CacheService.getScriptCache().remove(statusCacheKey_(request));
+    return response_(saved);
+  } catch(error) {
+    if(request&&statusCredentials_(request)){
+      try{CacheService.getScriptCache().put(statusCacheKey_(request),JSON.stringify({ok:false,error:error.message}),120);}catch(_){}
+    }
+    return response_({ok:false,error:error.message});
   }
 }
-
-function saveRequest_(request) {
-  const data = request.data || {};
-  const mode = request.mode === 'edo' ? 'edo' : 'signed';
-  const id = Utilities.getUuid().slice(0, 8).toUpperCase();
-  const createdAt = new Date();
-  const buyer = data.customerType === 'legal' ? data.legalName : data.personName;
-  const inn = data.customerType === 'legal' ? data.legalInn : '';
-  const delivery = data.deliveryType === 'carrier' ? 'Транспортная компания' : 'Самовывоз';
-  const files = (request.files || []).slice(0, MAX_FILES);
-
-  if (!buyer) throw new Error('Не заполнен покупатель.');
-  if (mode === 'signed' && !files.length) throw new Error('Прикрепите хотя бы один подписанный файл.');
-
-  const root = DriveApp.getFolderById(DRIVE_FOLDER_ID);
-  const requestFolder = root.createFolder('Заявка ' + id);
-  const fileLinks = files.map(function (file) {
-    if (!file.name || !file.base64) throw new Error('Не удалось прочитать прикреплённый файл.');
-    const bytes = Utilities.base64Decode(file.base64);
-    const blob = Utilities.newBlob(bytes, file.mimeType || 'application/octet-stream', file.name);
-    const saved = requestFolder.createFile(blob);
-    return saved.getUrl();
-  });
-
-  const status = mode === 'edo'
-    ? 'PDF скачан для отправки через ЭДО'
-    : 'Подписанная заявка отправлена';
-
-  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(REQUESTS_SHEET);
-  if (!sheet) throw new Error('Не найден лист «' + REQUESTS_SHEET + '».');
-
-  sheet.appendRow([
-    id,
-    createdAt,
-    inn,
-    buyer,
-    data.customerType === 'legal' ? 'Юридическое лицо / ИП' : 'Физическое лицо',
-    delivery,
-    data.carrier || '',
-    data.recipient || data.repName || '',
-    status,
-    request.pdfUrl || '',
-    fileLinks.join('\n'),
-    '',
-    createdAt
-  ]);
-
-  sendTelegram_(buildMessage_(id, buyer, status, requestFolder.getUrl(), fileLinks.length));
-  return { id: id };
+function buildMessage_(id,buyer,status,folderUrl,filesCount) {
+  return ['Новая заявка на отгрузку','№ '+id,'Покупатель: '+buyer,'Статус: '+status,filesCount?'Подписанных файлов: '+filesCount:'','Папка заявки: '+folderUrl].filter(Boolean).join('\n');
 }
-
-function buildMessage_(id, buyer, status, folderUrl, filesCount) {
-  return [
-    'Новая заявка на отгрузку',
-    '№ ' + id,
-    'Покупатель: ' + buyer,
-    'Статус: ' + status,
-    filesCount ? 'Прикреплено файлов: ' + filesCount : '',
-    'Папка заявки: ' + folderUrl
-  ].filter(Boolean).join('\n');
-}
-
 function sendTelegram_(text) {
-  const properties = PropertiesService.getScriptProperties();
-  const token = properties.getProperty('TELEGRAM_BOT_TOKEN');
-  const chatId = properties.getProperty('TELEGRAM_CHAT_ID');
-  if (!token || !chatId) throw new Error('Добавьте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID в свойства сценария.');
-
-  const response = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
-    method: 'post',
-    payload: { chat_id: chatId, text: text },
-    muteHttpExceptions: true
-  });
-  const result = JSON.parse(response.getContentText());
-  if (!result.ok) throw new Error('Telegram не принял уведомление: ' + result.description);
+  const properties=PropertiesService.getScriptProperties(),token=properties.getProperty('TELEGRAM_BOT_TOKEN'),chatId=properties.getProperty('TELEGRAM_CHAT_ID');
+  if(!token||!chatId)throw new Error('Не настроено уведомление.');
+  const response=UrlFetchApp.fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'post',payload:{chat_id:chatId,text:text},muteHttpExceptions:true});
+  const result=JSON.parse(response.getContentText());
+  if(!result.ok)throw new Error('Уведомление не принято.');
 }
+function response_(payload) {return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);}
 
-function response_(payload) {
-  return ContentService
-    .createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+// BEGIN SHARED VALIDATION
+/* Shared rules: also embedded in apps-script/Code.gs by scripts/build.mjs. */
+var ShipmentRules = (function () {
+  'use strict';
+  var MAX_FILE_BYTES = 10 * 1024 * 1024;
+  var MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+  var MIME = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
+  function text(value) { return String(value == null ? '' : value).trim(); }
+  function validInn(value) {
+    var n = text(value);
+    if (!/^\d{10}(\d{2})?$/.test(n) || /^(\d)\1+$/.test(n)) return false;
+    function digit(weights) { return weights.reduce(function (s, w, i) { return s + w * Number(n[i]); }, 0) % 11 % 10; }
+    return n.length === 10 ? digit([2,4,10,3,5,9,4,6,8]) === Number(n[9]) :
+      digit([7,2,4,10,3,5,9,4,6,8]) === Number(n[10]) && digit([3,7,2,4,10,3,5,9,4,6,8]) === Number(n[11]);
+  }
+  function validPhone(value) { return /^(?:7|8)\d{10}$/.test(text(value).replace(/\D/g, '')); }
+  function validEmail(value) { return /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(text(value)); }
+  function validPassport(value, type) {
+    var n = text(value).replace(/[\s-]/g, '');
+    return type === 'foreign' ? /^[0-9A-ZА-ЯЁ]{5,24}$/i.test(n) : /^\d{10}$/.test(n) && !/^(\d)\1+$/.test(n);
+  }
+  function recipient(data) {
+    var same = data.recipientSame === true || data.recipientSame === 'on';
+    var legal = (same ? data.customerType : data.recipientType) === 'legal';
+    return {
+      type: legal ? 'legal' : 'person',
+      name: text(same ? (legal ? data.legalName : data.personName) : data.recipient),
+      inn: legal ? text(same ? data.legalInn : data.recipientInn) : '',
+      passport: legal ? '' : text(same ? data.personPassport : data.recipientPassport),
+      passportType: same ? data.personPassportType : data.recipientPassportType
+    };
+  }
+  function errors(data, onlyStep) {
+    var out = [];
+    function add(field, step, message) { if (!onlyStep || step === onlyStep) out.push({ field: field, step: step, message: message }); }
+    function need(field, step, label) { if (!text(data[field])) add(field, step, 'Заполните поле «' + label + '».'); }
+    function phone(field, step) { if (!validPhone(data[field])) add(field, step, 'Введите российский телефон полностью: +7 и 10 цифр.'); }
+    function passport(field, type, step) { if (!validPassport(data[field], data[type])) add(field, step, data[type] === 'foreign' ? 'Введите номер иностранного документа: от 5 до 24 букв и цифр.' : 'Введите серию и номер паспорта РФ: 10 цифр.'); }
+    if (['legal','person'].indexOf(data.customerType) < 0) add('customerType',1,'Выберите тип покупателя.');
+    if (data.customerType === 'legal') {
+      if (!validInn(data.legalInn)) add('legalInn',2,'Проверьте ИНН: 10 или 12 цифр и корректное контрольное число.');
+      need('legalName',2,'Наименование организации'); need('legalSigner',2,'ФИО подписанта');
+    } else {
+      need('personName',2,'ФИО покупателя'); phone('contactPhone',2);
+      passport('personPassport','personPassportType',2);
+      if (text(data.contactEmail) && !validEmail(data.contactEmail)) add('contactEmail',2,'Введите email в формате name@example.ru.');
+    }
+    if (['carrier','representative'].indexOf(data.deliveryType) < 0) add('deliveryType',3,'Выберите способ получения.');
+    if (data.deliveryType === 'carrier') {
+      need('carrierCity',3,'Город получения'); need('carrier',3,'Транспортная компания');
+      if (data.carrier === 'Другая') need('carrierOther',3,'Название транспортной компании');
+      if (['terminal','address'].indexOf(data.carrierDeliveryMode) < 0) add('carrierDeliveryMode',3,'Выберите способ доставки.');
+      if (data.carrierDeliveryMode === 'address') need('deliveryAddress',3,'Адрес доставки');
+      else need('terminal',3,'Терминал транспортной компании');
+      if (data.terminalLoading) add('terminal',3,'Дождитесь подбора терминалов или включите ручной ввод.');
+      if (['Получатель','Отправитель'].indexOf(data.deliveryPayer) < 0) add('deliveryPayer',3,'Выберите плательщика доставки.');
+      var r = recipient(data);
+      if (!(data.recipientSame === true || data.recipientSame === 'on')) {
+        need('recipient',4,'Грузополучатель');
+        if (['legal','person'].indexOf(data.recipientType) < 0) add('recipientType',4,'Выберите тип получателя.');
+        if (r.type === 'legal' && !validInn(r.inn)) add('recipientInn',4,'Проверьте ИНН грузополучателя.');
+        if (r.type === 'person') passport('recipientPassport','recipientPassportType',4);
+      }
+      need('recipientContactName',4,'Контактное лицо получателя'); phone('recipientPhone',4);
+    }
+    if (data.deliveryType === 'representative') {
+      need('repName',4,'ФИО получателя'); passport('repPassport','repPassportType',4);
+      need('repPassportIssued',4,'Кем и когда выдан документ'); phone('repPhone',4);
+      if (data.pickupDate && !/^\d{4}-\d{2}-\d{2}$/.test(data.pickupDate)) add('pickupDate',4,'Укажите дату приезда.');
+    }
+    need('shipmentBasis',4,'Счёт, договор или спецификация');
+    if(data.basisStructured === true || data.basisStructured === 'on') {
+      if(['Счёт','Договор','Спецификация'].indexOf(data.basisKind)<0)add('basisKind',4,'Выберите вид документа.');
+      need('basisNumber',4,'Номер документа');
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(data.basisDate||'') || isNaN(Date.parse(data.basisDate)))add('basisDate',4,'Укажите дату документа.');
+    }
+    if (['ЭДО','Электронная почта','Почта России'].indexOf(data.originalsMethod) < 0) add('originalsMethod',5,'Выберите способ получения документов.');
+    if (data.originalsMethod === 'Электронная почта' && !validEmail(data.originalsEmail)) add('originalsEmail',5,'Введите email в формате name@example.ru.');
+    if (data.originalsMethod === 'Почта России') need('originalsPostalAddress',5,'Почтовый адрес с индексом');
+    if (['print','edo'].indexOf(data.signMethod) < 0) add('signMethod',6,'Выберите доступный способ подписания.');
+    Object.keys(data).forEach(function (field) {
+      if (data[field] != null && typeof data[field] !== 'string' && typeof data[field] !== 'boolean') add(field,2,'Некорректное значение поля.');
+      if (typeof data[field] === 'string' && data[field].length > (field === 'carrierNote' ? 2000 : 500)) add(field, field === 'carrierNote' ? 4 : 2, 'Сократите текст: не более ' + (field === 'carrierNote' ? 2000 : 500) + ' символов.');
+    });
+    return out;
+  }
+  function fileErrors(files) {
+    var result = [];
+    var names = {};
+    if (files.length > 2) result.push('Можно прикрепить не более двух файлов.');
+    var total = 0;
+    files.forEach(function (file) {
+      if(names[file.name]) result.push('Выберите файлы с разными именами.');
+      names[file.name] = true;
+      var ext = text(file.name).split('.').pop().toLowerCase();
+      if (!MIME[ext] || (file.type && file.type !== MIME[ext])) result.push('Файл «' + text(file.name) + '»: допустимы PDF, JPG и PNG.');
+      if (!file.size || file.size > MAX_FILE_BYTES) result.push('Файл «' + text(file.name) + '» должен быть непустым и не больше 10 МБ.');
+      total += Number(file.size) || 0;
+    });
+    if (total > MAX_TOTAL_BYTES) result.push('Общий размер файлов не должен превышать 20 МБ.');
+    return result;
+  }
+  return { validInn: validInn, validPhone: validPhone, validEmail: validEmail, validPassport: validPassport,
+    recipient: recipient, errors: errors, fileErrors: fileErrors, mime: MIME, maxFileBytes: MAX_FILE_BYTES, maxTotalBytes: MAX_TOTAL_BYTES };
+}());
+if (typeof module !== 'undefined' && module.exports) module.exports = ShipmentRules;
+
+// END SHARED VALIDATION

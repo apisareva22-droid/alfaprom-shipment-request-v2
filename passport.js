@@ -1,18 +1,12 @@
 (function () {
-  const fields = document.querySelectorAll('[name="repPassport"], [name="personPassport"]');
-  if (!fields.length) return;
-  function formatPassport(value) {
-    const compact = value.toUpperCase().replace(/[^0-9A-ZА-ЯЁ]/g, '');
-    if (/^\d+$/.test(compact)) return compact.length > 4 ? compact.slice(0, 4) + ' ' + compact.slice(4) : compact;
-    const foreign = compact.match(/^([A-ZА-ЯЁ]+)(\d[A-ZА-ЯЁ0-9]*)$/);
-    return foreign ? foreign[1] + ' ' + foreign[2] : compact;
-  }
-  fields.forEach(field => field.addEventListener('input', () => {
-    const position = field.selectionStart;
-    const before = field.value;
-    const formatted = formatPassport(before);
-    field.value = formatted;
-    const shift = formatted.length - before.length;
-    field.setSelectionRange(Math.max(0, position + shift), Math.max(0, position + shift));
-  }));
+  ['person','recipient','rep'].forEach(prefix=>{
+    const input=document.querySelector('[name="'+prefix+'Passport"]'),type=document.querySelector('[name="'+prefix+'PassportType"]');
+    input.addEventListener('input',function(){
+      const old=input.value,pos=input.selectionStart||0;
+      const compact=old.toUpperCase().replace(type.value==='foreign'?/[^0-9A-ZА-ЯЁ]/g:/\D/g,'');
+      const next=type.value==='ru'?(compact.slice(0,4)+(compact.length>4?' '+compact.slice(4,10):'')):compact.slice(0,24);
+      input.value=next;const position=Math.max(0,pos+next.length-old.length);input.setSelectionRange(position,position);
+    });
+    type.addEventListener('change',function(){input.value='';input.placeholder=type.value==='ru'?'0000 000000':'Номер иностранного документа';input.inputMode=type.value==='ru'?'numeric':'text';});
+  });
 }());

@@ -1,294 +1,147 @@
 (function () {
-  const cityInput = document.querySelector('[name="carrierCity"]');
-  const cityOptions = document.querySelector('#carrier-city-options');
-  const mode = document.querySelector('[name="carrierDeliveryMode"]');
-  const terminal = document.querySelector('.terminal-choice');
-  const terminalInput = document.querySelector('[name="terminal"]');
-  const terminalSelect = document.querySelector('[name="pekTerminal"]');
-  const warehouseId = document.querySelector('[name="pekWarehouseId"]');
-  const address = document.querySelector('.address-choice');
-  const terminalHelp = document.querySelector('#terminal-help');
-  const carrier = document.querySelector('[name="carrier"]');
-  const endpoint = 'https://script.google.com/macros/s/AKfycbyg0Ov5Gc632N16R61A1MySKK4jiU-Jh9AO4yoDiJvS7Y5m2FWt7emuiClrQXFrcXKrPA/exec';
-  const carrierDropdown = setupDropdown(carrier, 'Выберите транспортную компанию');
-  const modeDropdown = setupDropdown(mode, 'Выберите способ доставки');
-  const terminalDropdown = setupDropdown(terminalSelect, 'Выберите ближайший терминал');
-  if (!cityInput || !cityOptions || !mode || !terminal || !address) return;
-
-  function setupDropdown(select, placeholder) {
-    if (!select) return null;
-    const dropdown = document.createElement('div');
-    const trigger = document.createElement('button');
-    const menu = document.createElement('div');
-    dropdown.className = 'custom-dropdown' + (select.classList.contains('hidden') ? ' hidden' : '');
-    trigger.type = 'button';
-    trigger.className = 'custom-dropdown-trigger';
-    trigger.setAttribute('aria-haspopup', 'listbox');
-    trigger.setAttribute('aria-expanded', 'false');
-    menu.className = 'custom-dropdown-menu hidden';
-    menu.setAttribute('role', 'listbox');
-    dropdown.append(trigger, menu);
-    select.classList.add('dropdown-native');
-    select.insertAdjacentElement('afterend', dropdown);
-
-    function close() {
-      menu.classList.add('hidden');
-      trigger.setAttribute('aria-expanded', 'false');
-      dropdown.classList.remove('open');
-    }
-    function render() {
-      const selected = select.options[select.selectedIndex];
-      trigger.textContent = selected && selected.value ? selected.textContent : placeholder;
-      trigger.classList.toggle('is-placeholder', !(selected && selected.value));
-      menu.replaceChildren();
-      Array.from(select.options).forEach(function (option) {
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'custom-dropdown-option' + (option.selected ? ' selected' : '');
-        item.setAttribute('role', 'option');
-        item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
-        item.textContent = option.textContent;
-        item.disabled = option.disabled;
-        item.addEventListener('click', function () {
-          select.value = option.value;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          close();
-        });
-        menu.appendChild(item);
+  const form=document.querySelector('#request-form');
+  const city=document.querySelector('[name="carrierCity"]'),cities=document.querySelector('#carrier-city-options');
+  const carrier=document.querySelector('[name="carrier"]'),mode=document.querySelector('[name="carrierDeliveryMode"]');
+  const terminal=document.querySelector('[name="terminal"]'),select=document.querySelector('[name="pekTerminal"]'),idField=document.querySelector('[name="pekWarehouseId"]');
+  const help=document.querySelector('#terminal-help'),retry=document.querySelector('#retry-terminals'),manual=document.querySelector('#manual-terminal');
+  const actions={'ПЭК':'pekTerminals','Деловые Линии':'dellinTerminals','СДЭК':'cdekTerminals','ЖелДорЭкспедиция':'jdeTerminals'};
+  const cache=new Map(),cityCache=new Map();
+  let routeRevision=0,cityRevision=0,cityTimer,routeTimer,controller;
+  function changed(){document.dispatchEvent(new Event('shipment:change'));}
+  function dropdown(native,placeholder) {
+    const root=document.createElement('div'),trigger=document.createElement('button'),menu=document.createElement('div');
+    root.className='custom-dropdown'+(native.classList.contains('hidden')?' hidden':'');
+    trigger.type='button';trigger.className='custom-dropdown-trigger';trigger.setAttribute('aria-haspopup','listbox');trigger.setAttribute('aria-expanded','false');
+    menu.className='custom-dropdown-menu hidden';menu.setAttribute('role','listbox');menu.id='options-'+native.name;
+    const label=native.closest('label');const labelText=label?label.childNodes[0].textContent.trim():placeholder;
+    menu.setAttribute('aria-label',labelText);trigger.setAttribute('aria-label',labelText);trigger.setAttribute('aria-controls',menu.id);
+    root.append(trigger,menu);native.classList.add('dropdown-native');native.insertAdjacentElement('afterend',root);
+    function close(){menu.classList.add('hidden');root.classList.remove('open');trigger.setAttribute('aria-expanded','false');}
+    function options(){return Array.from(menu.querySelectorAll('button:not(:disabled)'));}
+    function render(){
+      const option=native.options[native.selectedIndex];trigger.textContent=option&&option.value?option.textContent:placeholder;
+      trigger.classList.toggle('is-placeholder',!(option&&option.value));menu.replaceChildren();let group='';
+      Array.from(native.options).forEach(option=>{
+        if(option.dataset.group&&option.dataset.group!==group){group=option.dataset.group;const title=document.createElement('div');title.className='dropdown-group';title.textContent=group;menu.appendChild(title);}
+        const item=document.createElement('button');item.type='button';item.className='custom-dropdown-option'+(option.selected?' selected':'');
+        item.setAttribute('role','option');item.setAttribute('aria-selected',String(option.selected));item.textContent=option.textContent;item.disabled=option.disabled;
+        item.addEventListener('click',()=>{native.value=option.value;native.dispatchEvent(new Event('change',{bubbles:true}));close();trigger.focus();});menu.appendChild(item);
       });
     }
-    trigger.addEventListener('click', function () {
-      const willOpen = menu.classList.contains('hidden');
-      document.querySelectorAll('.custom-dropdown-menu').forEach(function (other) {
-        if (other !== menu) other.classList.add('hidden');
-      });
-      document.querySelectorAll('.custom-dropdown').forEach(function (other) {
-        if (other !== dropdown) other.classList.remove('open');
-      });
-      menu.classList.toggle('hidden', !willOpen);
-      trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-      dropdown.classList.toggle('open', willOpen);
+    function open(){
+      document.querySelectorAll('.custom-dropdown-menu').forEach(el=>el.classList.add('hidden'));
+      document.querySelectorAll('.custom-dropdown-trigger').forEach(el=>el.setAttribute('aria-expanded','false'));
+      document.querySelectorAll('.custom-dropdown').forEach(el=>el.classList.remove('open'));
+      menu.classList.remove('hidden');root.classList.add('open');trigger.setAttribute('aria-expanded','true');
+    }
+    trigger.addEventListener('click',()=>menu.classList.contains('hidden')?open():close());
+    trigger.addEventListener('keydown',event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();open();const opts=options();if(opts.length)opts[event.key==='ArrowDown'?0:opts.length-1].focus();}if(event.key==='Escape')close();});
+    menu.addEventListener('keydown',event=>{
+      const opts=options(),index=opts.indexOf(document.activeElement);
+      if(event.key==='Escape'){event.preventDefault();close();trigger.focus();}
+      if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();let next=event.key==='Home'?0:event.key==='End'?opts.length-1:(index+(event.key==='ArrowDown'?1:-1)+opts.length)%opts.length;if(opts[next])opts[next].focus();}
     });
-    document.addEventListener('click', function (event) {
-      if (!dropdown.contains(event.target)) close();
+    root.addEventListener('focusout',()=>setTimeout(()=>{if(!root.contains(document.activeElement))close();},0));
+    document.addEventListener('click',event=>{if(!root.contains(event.target))close();});native.addEventListener('change',render);render();
+    return {render,setVisible(visible){root.classList.toggle('hidden',!visible);if(!visible)close();},setDisabled(disabled){trigger.disabled=disabled;if(disabled)close();}};
+  }
+  dropdown(carrier,'Выберите транспортную компанию');dropdown(mode,'Выберите способ доставки');
+  const terminalMenu=dropdown(select,'Выберите ближайший терминал');
+  function clearTerminals(){
+    ++routeRevision;clearTimeout(routeTimer);
+    form.dataset.terminalLoading='false';terminal.value='';idField.value='';terminal.disabled=false;
+    select.replaceChildren(new Option('Выберите ближайший терминал',''));terminalMenu.render();terminalMenu.setVisible(false);
+    select.classList.add('hidden');terminal.classList.remove('hidden');retry.classList.add('hidden');manual.classList.add('hidden');
+  }
+  function lookupRoute(){return actions[carrier.value]&&mode.value==='terminal'&&window.shipmentData().deliveryType==='carrier';}
+  function updateRoute(){
+    clearTerminals();
+    document.querySelector('.terminal-choice').classList.toggle('hidden',mode.value==='address');
+    document.querySelector('.address-choice').classList.toggle('hidden',mode.value!=='address');
+    help.textContent='Укажите название и адрес грузового терминала выбранной ТК.';
+    if(lookupRoute()&&city.value.trim().length>=2){
+      form.dataset.terminalLoading='true';terminal.disabled=true;help.textContent='Подбираем терминалы '+carrier.value+'…';
+      manual.classList.remove('hidden');
+      const revision=routeRevision;routeTimer=setTimeout(()=>load(revision),450);
+    }
+  }
+  const normalize=text=>String(text||'').toLocaleLowerCase('ru').replace(/ё/g,'е').trim();
+  function renderTerminals(payload){
+    terminal.disabled=false;
+    const items=payload.terminals||[];
+    if(!items.length){terminal.disabled=false;terminalMenu.setVisible(false);terminal.classList.remove('hidden');help.textContent='Рядом не найдено грузовых терминалов. Укажите адрес вручную или повторите поиск.';retry.classList.remove('hidden');return;}
+    terminal.classList.add('hidden');select.classList.remove('hidden');
+    const wanted=normalize(city.value.split('—')[0]);
+    const sorted=items.map(item=>({...item,near:normalize(item.branchName)===wanted||normalize(item.name).startsWith(wanted)})).sort((a,b)=>Number(b.near)-Number(a.near));
+    select.replaceChildren(new Option('Выберите ближайший терминал',''));
+    sorted.forEach(item=>{
+      const distance=Number.isFinite(item.distanceKm)?' ('+item.distanceKm+' км)':'';
+      const label=[item.name,item.address].filter(Boolean).join(' — ')+distance;
+      const option=new Option(label,String(item.id));option.dataset.label=label;option.dataset.group=item.near?'В выбранном городе и его окрестностях':'Другие ближайшие населённые пункты';select.add(option);
     });
-    select.addEventListener('change', render);
-    render();
-    return {
-      render: render,
-      setVisible: function (visible) { dropdown.classList.toggle('hidden', !visible); if (!visible) close(); }
-    };
+    terminalMenu.render();terminalMenu.setVisible(true);terminalMenu.setDisabled(false);
+    help.textContent='Выберите грузовой терминал. Для крупногабаритного оборудования уточните ограничения у перевозчика.';
+    manual.classList.remove('hidden');
   }
-
-
-  let cityTimer;
-  let pekTimer;
-  let controller;
-  let requestId = 0;
-  let jsonpId = 0;
-  const cityCache = new Map();
-  const pekCache = new Map();
-
-  function isTerminalLookupRoute() {
-    return ['ПЭК', 'Деловые Линии', 'СДЭК', 'ЖелДорЭкспедиция'].indexOf(carrier.value) !== -1 && mode.value === 'terminal';
-  }
-
-  function closeCities() {
-    cityOptions.classList.add('hidden');
-    cityInput.setAttribute('aria-expanded', 'false');
-  }
-
-  function clearPekChoices() {
-    if (!terminalSelect) return;
-    terminalSelect.replaceChildren(new Option('Выберите терминал ПЭК', ''));
-    terminalSelect.classList.add('hidden');
-    if (terminalDropdown) terminalDropdown.setVisible(false);
-    terminalInput.classList.remove('hidden');
-    if (warehouseId) warehouseId.value = '';
-  }
-
-  function updateRoute() {
-    const toAddress = mode.value === 'address';
-    terminal.classList.toggle('hidden', toAddress);
-    address.classList.toggle('hidden', !toAddress);
-    if (toAddress) return;
-
-    const name = carrier.value || 'выбранной ТК';
-    const city = cityInput.value ? ' в населённом пункте «' + cityInput.value + '»' : '';
-    if (terminalHelp) terminalHelp.textContent = 'Выберите или укажите терминал ' + name + city + '.';
-
-    clearTimeout(pekTimer);
-    if (isTerminalLookupRoute() && cityInput.value.trim().length >= 2) {
-      pekTimer = setTimeout(function () { loadCarrierTerminals(cityInput.value); }, 450);
-    } else {
-      clearPekChoices();
+  async function load(revision){
+    const key=carrier.value+':'+city.value.trim(),route=carrier.value,location=city.value.trim();
+    try{
+      const payload=cache.get(key)||await ShipmentTransport.jsonp(ShipmentTransport.endpoint+'?action='+actions[route]+'&location='+encodeURIComponent(location),12000);
+      if(revision!==routeRevision||!lookupRoute()||carrier.value!==route||city.value.trim()!==location)return;
+      if(!payload||payload.ok!==true)throw new Error('Перевозчик временно не ответил.');
+      cache.set(key,payload);form.dataset.terminalLoading='false';renderTerminals(payload);changed();
+    }catch(error){
+      if(revision!==routeRevision)return;
+      form.dataset.terminalLoading='false';terminal.disabled=false;terminalMenu.setVisible(false);terminal.classList.remove('hidden');
+      help.textContent='Не удалось подобрать терминалы. Укажите адрес вручную или повторите поиск.';retry.classList.remove('hidden');manual.classList.add('hidden');changed();
     }
   }
-
-  function placeTitle(place) {
-    const address = place.address || {};
-    const locality = address.city || address.town || address.village || address.municipality || address.hamlet || place.display_name.split(',')[0];
-    const region = address.state || address.region || address.county || '';
-    return region && locality ? locality + ' — ' + region : place.display_name;
-  }
-
-  function renderCities(places) {
-    const seen = new Set();
-    const options = places.filter(function (place) {
-      const title = placeTitle(place);
-      if (seen.has(title)) return false;
-      seen.add(title);
-      return true;
-    }).map(function (place) {
-      const option = document.createElement('button');
-      option.type = 'button';
-      option.className = 'city-option';
-      option.setAttribute('role', 'option');
-      option.textContent = placeTitle(place);
-      option.addEventListener('mousedown', function (event) {
-        event.preventDefault();
-        cityInput.value = option.textContent;
-        closeCities();
-        updateRoute();
-      });
-      return option;
-    });
-    cityOptions.replaceChildren(...options);
-    cityOptions.classList.toggle('hidden', options.length === 0);
-    cityInput.setAttribute('aria-expanded', options.length ? 'true' : 'false');
-  }
-
-  function showLoading() {
-    const status = document.createElement('div');
-    status.className = 'city-option';
-    status.setAttribute('aria-live', 'polite');
-    status.textContent = 'Ищем населённые пункты…';
-    cityOptions.replaceChildren(status);
-    cityOptions.classList.remove('hidden');
-    cityInput.setAttribute('aria-expanded', 'true');
-  }
-
-  async function searchPlaces(query) {
-    const value = query.trim();
-    if (value.length < 2) {
-      closeCities();
-      return;
-    }
-    const key = value.toLocaleLowerCase('ru');
-    if (cityCache.has(key)) {
-      renderCities(cityCache.get(key));
-      return;
-    }
-
-    const currentRequest = ++requestId;
-    if (controller) controller.abort();
-    controller = new AbortController();
-    showLoading();
-
-    try {
-      const response = await fetch(
-        'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=ru&limit=8&q=' + encodeURIComponent(value),
-        { signal: controller.signal }
-      );
-      if (!response.ok) throw new Error('Не удалось найти населённые пункты.');
-      const places = await response.json();
-      cityCache.set(key, places);
-      if (currentRequest === requestId) renderCities(places);
-    } catch (error) {
-      if (error.name !== 'AbortError' && currentRequest === requestId) closeCities();
-    }
-  }
-
-  function getJsonp(url) {
-    return new Promise(function (resolve, reject) {
-      const callback = '__pekCallback' + (++jsonpId);
-      const script = document.createElement('script');
-      const timeout = setTimeout(cleanup, 12000);
-
-      function cleanup() {
-        clearTimeout(timeout);
-        script.remove();
-        delete window[callback];
-      }
-      window[callback] = function (payload) {
-        cleanup();
-        resolve(payload);
-      };
-      script.onerror = function () {
-        cleanup();
-        reject(new Error('Не удалось получить терминалы ПЭК.'));
-      };
-      script.src = url + '&callback=' + callback;
-      document.head.appendChild(script);
-    });
-  }
-
-  function terminalLabel(item) {
-    return [item.name, item.address].filter(Boolean).join(' — ');
-  }
-
-  function renderCarrierTerminals(result) {
-    const terminals = (result && result.terminals) || [];
-    if (!terminalSelect || !terminals.length) {
-      clearPekChoices();
-      if (terminalHelp) terminalHelp.textContent = 'Транспортная компания не нашла терминалы рядом. Укажите терминал вручную.';
-      return;
-    }
-
-    terminalSelect.replaceChildren(new Option('Выберите ближайший терминал', ''));
-    terminals.forEach(function (item) {
-      const option = new Option(terminalLabel(item), item.id);
-      option.dataset.label = terminalLabel(item);
-      terminalSelect.add(option);
-    });
-    terminalSelect.classList.remove('hidden');
-    if (terminalDropdown) { terminalDropdown.setVisible(true); terminalDropdown.render(); }
-    terminalInput.classList.add('hidden');
-    terminalInput.value = '';
-    if (warehouseId) warehouseId.value = '';
-    if (terminalHelp) terminalHelp.textContent = 'Транспортная компания подобрала ближайшие терминалы к указанному населённому пункту.';
-  }
-
-  async function loadCarrierTerminals(location) {
-    if (!isTerminalLookupRoute()) return;
-    const normalized = location.trim();
-    const selectedCarrier = carrier.value;
-    const key = selectedCarrier + ':' + normalized.toLocaleLowerCase('ru');
-    if (pekCache.has(key)) {
-      renderCarrierTerminals(pekCache.get(key));
-      return;
-    }
-    if (terminalHelp) terminalHelp.textContent = 'Подбираем ближайшие терминалы ' + selectedCarrier + '…';
-
-    try {
-      const actionByCarrier = { 'ПЭК': 'pekTerminals', 'Деловые Линии': 'dellinTerminals', 'СДЭК': 'cdekTerminals', 'ЖелДорЭкспедиция': 'jdeTerminals' };
-      const action = actionByCarrier[selectedCarrier];
-      const result = await getJsonp(endpoint + '?action=' + action + '&location=' + encodeURIComponent(normalized));
-      if (!isTerminalLookupRoute() || carrier.value !== selectedCarrier || cityInput.value.trim() !== normalized) return;
-      pekCache.set(key, result);
-      renderCarrierTerminals(result);
-    } catch (error) {
-      clearPekChoices();
-      if (terminalHelp) terminalHelp.textContent = 'Не удалось подобрать терминалы. Укажите терминал вручную.';
-    }
-  }
-
-  cityInput.addEventListener('focus', function () {
-    if (cityInput.value.trim().length >= 2) searchPlaces(cityInput.value);
+  retry.addEventListener('click',()=>{cache.delete(carrier.value+':'+city.value.trim());updateRoute();changed();});
+  manual.addEventListener('click',()=>{clearTerminals();help.textContent='Укажите название и полный адрес грузового терминала.';retry.classList.remove('hidden');terminal.focus();changed();});
+  select.addEventListener('change',()=>{
+    const option=select.options[select.selectedIndex];terminal.value=option&&option.dataset.label||'';idField.value=select.value;changed();
   });
-  cityInput.addEventListener('input', function () {
-    clearTimeout(cityTimer);
-    cityTimer = setTimeout(function () { searchPlaces(cityInput.value); }, 250);
-    updateRoute();
+  function closeCities(){cities.classList.add('hidden');city.setAttribute('aria-expanded','false');}
+  function chooseCity(title){city.value=title;closeCities();updateRoute();changed();}
+  function renderCities(places,query){
+    const wanted=normalize(query);const seen=new Set();
+    const items=places.map(place=>{
+      const address=place.address||{},locality=address.city||address.town||address.village||address.hamlet||'';
+      const region=address.state||address.region||'';
+      return {locality,region,title:locality+(region?' — '+region:'')};
+    }).filter(item=>item.locality&&normalize(item.locality).includes(wanted)).sort((a,b)=>Number(normalize(b.locality)===wanted)-Number(normalize(a.locality)===wanted)||Number(Boolean(b.region))-Number(Boolean(a.region)));
+    cities.replaceChildren();
+    items.forEach(item=>{
+      const key=normalize(item.title);if(seen.has(key)||(!item.region&&items.some(other=>other.region&&other.locality===item.locality)))return;seen.add(key);
+      const option=document.createElement('button');option.type='button';option.className='city-option';option.setAttribute('role','option');option.textContent=item.title;
+      option.addEventListener('mousedown',event=>event.preventDefault());option.addEventListener('click',()=>chooseCity(item.title));cities.appendChild(option);
+    });
+    const visible=cities.childElementCount>0;cities.classList.toggle('hidden',!visible);city.setAttribute('aria-expanded',String(visible));
+    document.querySelector('#city-help').textContent=visible?'Выберите населённый пункт и проверьте регион.':'Подсказок нет. Можно оставить введённый город и уточнить регион вручную.';
+  }
+  async function searchCity(query){
+    const revision=++cityRevision,text=query.trim();if(controller)controller.abort();
+    if(text.length<2){closeCities();return;}
+    if(cityCache.has(normalize(text))){renderCities(cityCache.get(normalize(text)),text);return;}
+    controller=new AbortController();const timer=setTimeout(()=>controller.abort(),8000);
+    document.querySelector('#city-help').textContent='Ищем населённые пункты…';
+    try{
+      const response=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=ru&limit=8&q='+encodeURIComponent(text),{signal:controller.signal});
+      if(!response.ok)throw new Error('Поиск недоступен');
+      const places=await response.json();if(revision!==cityRevision||city.value.trim()!==text)return;
+      cityCache.set(normalize(text),places);renderCities(places,text);
+    }catch(_){if(revision===cityRevision){closeCities();document.querySelector('#city-help').textContent='Подсказки временно недоступны. Укажите город и регион вручную.';}}
+    finally{clearTimeout(timer);}
+  }
+  city.addEventListener('input',()=>{++cityRevision;if(controller)controller.abort();clearTimeout(cityTimer);closeCities();cityTimer=setTimeout(()=>searchCity(city.value),300);updateRoute();changed();});
+  city.addEventListener('focus',()=>{if(city.value.trim().length>=2)searchCity(city.value);});
+  city.addEventListener('blur',()=>setTimeout(()=>{if(!cities.contains(document.activeElement))closeCities();},150));
+  city.addEventListener('keydown',event=>{
+    if(event.key==='Escape')closeCities();
+    if(event.key==='ArrowDown'){const option=cities.querySelector('button');if(option){event.preventDefault();option.focus();}}
   });
-  cityInput.addEventListener('blur', function () { setTimeout(closeCities, 150); });
-  cityInput.addEventListener('change', updateRoute);
-  carrier.addEventListener('change', updateRoute);
-  mode.addEventListener('change', updateRoute);
-  if (terminalSelect) terminalSelect.addEventListener('change', function () {
-    const option = terminalSelect.options[terminalSelect.selectedIndex];
-    terminalInput.value = option && option.dataset.label ? option.dataset.label : '';
-    if (warehouseId) warehouseId.value = terminalSelect.value;
-  });
+  cities.addEventListener('keydown',event=>{const items=Array.from(cities.querySelectorAll('button'));if(event.key==='Escape'){closeCities();city.focus();}if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const index=items.indexOf(document.activeElement);items[(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length].focus();}});
+  carrier.addEventListener('change',()=>{updateRoute();changed();});mode.addEventListener('change',()=>{updateRoute();changed();});
+  document.querySelectorAll('[name="deliveryType"]').forEach(input=>input.addEventListener('change',()=>{updateRoute();changed();}));
   updateRoute();
 }());

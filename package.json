@@ -1,0 +1,6 @@
+{
+  "name": "alfaprom-shipment-request",
+  "private": true,
+  "scripts": { "test": "node --test tests/*.test.cjs", "check": "node scripts/check.cjs" },
+  "devDependencies": { "jsdom": "26.1.0" }
+}

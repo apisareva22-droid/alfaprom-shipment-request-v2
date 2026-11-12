@@ -1,255 +1,248 @@
+'use strict';
 const form = document.querySelector('#request-form');
 const result = document.querySelector('#result');
-let documentPdf;
-let finalizedRequestData;
-let edoLogged = false;
-const INTEGRATION_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyg0Ov5Gc632N16R61A1MySKK4jiU-Jh9AO4yoDiJvS7Y5m2FWt7emuiClrQXFrcXKrPA/exec';
-
-function getData() { return Object.fromEntries(new FormData(form).entries()); }
-function optionCards() {
-  document.querySelectorAll('.choice input').forEach(input => {
-    input.addEventListener('change', () => {
-      document.querySelectorAll(`input[name="${input.name}"]`).forEach(i => i.closest('.choice').classList.toggle('active', i.checked));
-      toggleSections();
-    });
-  });
-}
-function toggleSections() {
-  const data = getData();
-  document.querySelector('.legal-fields').classList.toggle('hidden', data.customerType !== 'legal');
-  document.querySelector('.person-fields').classList.toggle('hidden', data.customerType !== 'person');
-  const delivery = data.deliveryType;
-  document.querySelector('.carrier-fields').classList.toggle('hidden', delivery !== 'carrier');
-  document.querySelector('.representative-fields').classList.toggle('hidden', delivery !== 'representative');
-  document.querySelector('.originals-email-fields').classList.toggle('hidden', data.originalsMethod !== 'Электронная почта');
-  document.querySelector('.originals-post-fields').classList.toggle('hidden', data.originalsMethod !== 'Почта России');
-}
-function required(data, value, label) { if (!value?.trim()) throw new Error(`Заполните поле: «${label}».`); }
-function validate(data) {
-  if(data.customerType==='legal' && document.querySelector('#legal-details').classList.contains('hidden')) throw new Error('Введите ИНН и дождитесь завершения поиска организации.');
-  if(data.customerType==='legal'){required(data,data.legalName,'Полное наименование организации');required(data,data.legalInn,'ИНН');required(data,data.legalSigner,'ФИО подписанта');}
-  else {required(data,data.personName,'ФИО');required(data,data.contactPhone,'Телефон'); }
-  if(data.deliveryType==='carrier'){
-    required(data,data.carrier,'Транспортная компания');
-    required(data,data.carrierCity,'Город получения');
-    required(data,data.recipient,'Грузополучатель');
-    required(data,data.recipientContactName,'Контактное лицо получателя');
-    required(data,data.recipientPhone,'Телефон контактного лица');
-    if(data.carrierDeliveryMode==='address') required(data,data.deliveryAddress,'Адрес доставки');
-    else required(data,data.terminal,'Терминал транспортной компании');
-  }
-    if(data.deliveryType==='representative'){
-    required(data,data.repPosition,'Должность получателя');
-    required(data,data.repName,'ФИО получателя');
-    required(data,data.repPassport,'Паспорт: серия и номер');
-    required(data,data.repPassportIssued,'Кем и когда выдан паспорт');
-  }
-  required(data,data.shipmentBasis,'Счёт, договор или спецификация');
-  if(data.originalsMethod==='Электронная почта') required(data,data.originalsEmail,'Адрес электронной почты для отправки документов');
-  if(data.originalsMethod==='Почта России') required(data,data.originalsPostalAddress,'Адрес для отправки документов');
-}
-function date() {return new Intl.DateTimeFormat('ru-RU').format(new Date());}
-function docTitle() {return 'ЗАЯВКА НА ОТГРУЗКУ';}
-const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
-function makePdf(data) {
-  const buyer = data.customerType === 'legal' ? data.legalName : data.personName;
-  const inn = data.customerType === 'legal' ? data.legalInn : '—';
-  const isCarrier = data.deliveryType === 'carrier';
-  const recipient = isCarrier ? data.recipient : buyer;
-  const passport = isCarrier ? (data.customerType === 'person' ? (data.personPassport || '—') : '—') : data.repPassport + '; ' + data.repPassportIssued;
-  const deliveryCondition = isCarrier ? (data.carrierDeliveryMode === 'address' ? 'адресная' : 'до терминала ТК') : 'самовывоз';
-  const deliveryAddress = isCarrier ? (data.carrierDeliveryMode === 'address' ? data.deliveryAddress : data.carrierCity + ', ' + data.terminal) : 'Самовывоз со склада';
-  const carrier = isCarrier ? data.carrier : 'Самовывоз';
-  const contact = isCarrier ? data.recipientContactName + (data.recipientPhone ? ', ' + data.recipientPhone : '') : data.repName + (data.contactPhone ? ', ' + data.contactPhone : '');
-  const signerFullName = data.customerType === 'legal' ? data.legalSigner : data.personName;
-  const signerParts = String(signerFullName || '').trim().split(' ').filter(Boolean);
-  const signer = signerParts.length > 1 ? signerParts[0] + ' ' + signerParts.slice(1).map(function (part) { return part.charAt(0).toUpperCase() + '.'; }).join('') : (signerParts[0] || '');
-  const pickup = data.pickupDate ? new Date(data.pickupDate + 'T00:00:00').toLocaleDateString('ru-RU') : '';
-  const originalsDestination = data.originalsMethod === 'Электронная почта' ? data.originalsEmail : data.originalsMethod === 'Почта России' ? data.originalsPostalAddress : '';
-  const e = escapeHtml;
-  const row = (label, value, cls = '') => '<tr class="' + cls + '"><td>' + label + '</td><td>' + e(value || '—') + '</td></tr>';
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Заявка на отгрузку</title><style>
-@page{size:A4;margin:9mm 10mm}*{box-sizing:border-box}body{margin:0;color:#111;font-family:Arial,sans-serif;font-size:10.7pt;line-height:1.28}.page{min-height:277mm;position:relative}.page+ .page{page-break-before:always}.brand{height:38mm;position:relative;overflow:hidden}.pixels{position:absolute;left:-8mm;top:-9mm;width:38mm;height:38mm;background:repeating-linear-gradient(90deg,#ff8100 0 7mm,transparent 7mm 11mm),repeating-linear-gradient(0deg,#ff8100 0 7mm,transparent 7mm 11mm);opacity:.95}.wordmark{position:absolute;right:0;top:8mm;color:#ff8100;font-size:26pt;font-weight:300;letter-spacing:-1px}.tagline{position:absolute;right:1mm;top:22mm;color:#ff8100;font-size:10pt;font-weight:700}.title{text-align:center;font-size:15pt;font-weight:700;margin:0 0 6mm}.form-table{width:100%;border-collapse:collapse;table-layout:fixed}.form-table td{border:1px solid #111;padding:3.5mm 3mm;vertical-align:top}.form-table td:first-child{width:50%;font-style:italic}.form-table .tall td{height:18mm}.form-table .note td:first-child{font-size:9.5pt}.signature{margin-top:13mm;font-style:italic}.footer-note{margin-top:6mm;font-size:9.5pt;font-style:italic}.rules h1{text-align:center;font-size:14pt;font-style:italic;margin:8mm 0}.rules p{margin:0 0 4.5mm;text-align:justify;font-size:11.4pt;font-style:italic}.rules h2{font-size:12pt;font-style:italic;margin:5mm 0 2mm}.rules ul{margin:0 0 4.5mm;padding-left:8mm;font-size:11.2pt;font-style:italic}.rules .strong{font-weight:700}.rules .agree{margin-top:15mm;text-align:center}</style></head><body>` +
-`<section class="page"><div class="brand"><div class="wordmark">АЛЬФАПРОМ</div><div class="tagline">Пищевое и упаковочное оборудование<br>Надежно. Быстро. Удобно</div></div><h1 class="title">ЗАЯВКА НА ОТГРУЗКУ</h1><table class="form-table">` +
-row('Прошу вас отгрузить товар по счету/договору/спецификации', data.shipmentBasis, 'tall') +
-row('Получатель (юр/физ лицо)', recipient) +
-row('Плательщик за доставку (получатель/отправитель)', data.deliveryPayer, 'tall') +
-row('ИНН получателя (заполняется для юр. лиц)', inn) +
-row('Паспорт получателя (заполняется для физ. лиц)', passport) +
-row('Условия доставки (адресная/до терминала ТК)', deliveryCondition) +
-row('Адрес доставки (город)', deliveryAddress) +
-row('Транспортная компания', carrier) +
-row('Контактные данные получателя (ФИО и номер телефона)', contact, 'tall') +
-row('Способ направления оригиналов документов (ЭДО, эл. почта, Почта России)', data.originalsMethod, 'tall') +
-(originalsDestination ? row(data.originalsMethod === 'Электронная почта' ? 'Адрес электронной почты для отправки документов' : 'Адрес для отправки документов', originalsDestination, 'tall') : '') +
-`</table><p class="footer-note">* Страховка груза в обязательном порядке оформляется на сумму из счёта.</p>${pickup ? '<p class="footer-note">Планируемый приезд за товаром: ' + e(pickup) + '.</p>' : ''}<p class="signature">____________________ / ${e(signer || '____________________')}</p><p class="footer-note">* При подписании заявки на отгрузку ознакомьтесь с правилами приема груза от транспортных компаний.</p></section>` +
-`<section class="page rules"><h1>ПРАВИЛА ПРИЕМА ГРУЗА ОТ ТРАНСПОРТНЫХ КОМПАНИЙ</h1><p>При получении груза на терминале ТК: НАСТОЯТЕЛЬНО СОВЕТУЕМ сначала осмотреть груз на наличие повреждений. При наличии повреждений составить акт осмотра и претензию в транспортной компании ДЛЯ ПОЛУЧЕНИЯ ПОЛНОЙ КОМПЕНСАЦИИ.</p><p>При получении груза по адресной доставке: осмотрите груз на внешние повреждения (целостность упаковки). После вскрытия при обнаружении дефектов, в течение 3 дней Вы можете подать претензию в ТК.</p><p>Если сомневаетесь в целостности доставленного заказа, ни при каких условиях не подписывайте документы без предварительного осмотра груза. В обязательном порядке проверьте груз в месте вручения в присутствии сотрудника транспортной компании.</p><h2>Порядок действий при приемке груза:</h2><ul><li>Сверить количество фактических мест указанным в Накладной. Если количество мест не совпадает — составьте акт о расхождении мест в присутствии сотрудников ТК.</li><li>Проверьте внешнюю целостность упаковки. Наличие подозрительной упаковки также является поводом к составлению акта о нарушении условий доставки.</li></ul><h2>При любых повреждениях сделайте ряд фотографий:</h2><ul><li>Общий вид подозрительной упаковки с 2 ракурсов.</li><li>Крупный план подозрительной части упаковки.</li><li>Фотография вскрытой упаковки.</li><li>При необходимости — дефекты крупным планом на содержимом или видеозапись вскрытия упаковки.</li></ul><p class="strong">При возникновении замечаний сотрудник ТК предоставляет бланк акта, в котором необходимо описать обнаруженные повреждения: повреждения, отсутствие, подмена товара, прочее.</p><p class="strong">Акт обязательно должен быть заверен синей печатью ТК либо подписью водителя при доставке до адреса. Сроки подачи жалобы составляют 3 рабочих дня с момента получения груза.</p><p class="agree">С данными по отправке согласен, ____________________ / ${e(signer || '____________________')} &nbsp;&nbsp; М.П.</p></section></body></html>`;
-}
-window.getShipmentPreviewHtml = function () { return makePdf(getData()); };
-function printPdf(html){const w=window.open('','_blank');if(!w)return;w.document.write(html);w.document.close();w.focus();w.print();}
-async function downloadPdf(html) {
-  if (!window.html2canvas || !window.jspdf) throw new Error('Не удалось загрузить модуль формирования PDF. Проверьте подключение к интернету и повторите попытку.');
-
-  const parsed = new DOMParser().parseFromString(html, 'text/html');
-  const root = document.createElement('div');
-  root.setAttribute('aria-hidden', 'true');
-  root.style.cssText = 'position:fixed;left:0;top:0;width:210mm;padding:9mm 10mm;background:#fff;visibility:visible;z-index:-1;pointer-events:none;';
-  root.innerHTML = '<style>' + parsed.querySelector('style').textContent + '</style>' + parsed.body.innerHTML;
-  document.body.appendChild(root);
-
-  try {
-    const pages = Array.from(root.querySelectorAll('.page'));
-    if (!pages.length) throw new Error('Не удалось подготовить страницы документа.');
-
-    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    for (let index = 0; index < pages.length; index += 1) {
-      const canvas = await window.html2canvas(pages[index], {
-        scale: 3,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
-      if (index > 0) pdf.addPage();
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 10, 9, 190, 277, undefined, 'MEDIUM');
-    }
-    pdf.save('Заявка на отгрузку.pdf');
-  } finally {
-    root.remove();
-  }
-}
-
-optionCards();
 const signedFilesInput = document.querySelector('[name="signedFiles"]');
 const fileName = document.querySelector('#file-name');
 const sendStatus = document.querySelector('#send-status');
-const sendButton = document.querySelector('#submit-signed-request');
+const receipt = document.querySelector('#request-receipt');
+const draftKey = 'alfaprom-shipment-draft-v30';
+let finalizedRequestData = null;
+let documentHtml = '';
+let generatedPdf = null;
+let generation = 0;
+let submission = null;
+let submitted = false;
+let sending = false;
+const value = name => form.elements.namedItem(name);
+const checked = name => Boolean(value(name) && value(name).checked);
+const all = selector => Array.from(document.querySelectorAll(selector));
+const show = (selector, visible) => all(selector).forEach(el => el.classList.toggle('hidden', !visible));
 
-signedFilesInput.addEventListener('change', function () {
-  const files = Array.from(signedFilesInput.files);
-  fileName.textContent = files.length ? files.map(function (file) { return file.name; }).join(', ') : 'Файлы не выбраны';
-  sendStatus.textContent = '';
+function getData() {
+  const data = Object.fromEntries(new FormData(form).entries());
+  ['recipientSame','contactSame','pickupSelf','basisStructured'].forEach(name => { data[name] = checked(name); });
+  if(data.basisStructured) {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(data.basisDate||'') ? data.basisDate.split('-').reverse().join('.') : '';
+    data.shipmentBasis = [data.basisKind, data.basisNumber ? '№ '+data.basisNumber : '', date ? 'от '+date : ''].filter(Boolean).join(' ');
+  }
+  data.terminalLoading = form.dataset.terminalLoading === 'true';
+  return data;
+}
+window.shipmentData = getData;
+function invalidate() {
+  generation += 1; documentHtml = ''; generatedPdf = null; finalizedRequestData = null;
+  submission = null; submitted = false;
+  result.classList.add('hidden'); result.classList.remove('has-error');
+  show('#signed-upload-result, #edo-submit-result, #request-receipt', false);
+  signedFilesInput.value = ''; fileName.textContent = 'Файлы не выбраны';
+  sendStatus.textContent = ''; receipt.textContent = '';
+  ['#download-pdf','#print-pdf','#submit-signed-request','#submit-edo-request'].forEach(selector => { document.querySelector(selector).disabled = false; });
+  document.querySelector('#submit-signed-request').textContent = 'Отправить подписанную заявку';
+  document.querySelector('#submit-edo-request').textContent = 'Сообщить менеджеру о заявке для ЭДО';
+}
+window.invalidateShipment = invalidate;
+
+function sync() {
+  const d = getData();
+  show('.legal-fields', d.customerType === 'legal'); show('.person-fields', d.customerType === 'person');
+  show('.carrier-fields', d.deliveryType === 'carrier'); show('.representative-fields, .pickup-info', d.deliveryType === 'representative');
+  show('.pickup-self', d.customerType === 'person');
+  show('.recipient-custom', !d.recipientSame);
+  show('.recipient-legal', d.recipientType === 'legal'); show('.recipient-person', d.recipientType === 'person');
+  show('.originals-email-fields', d.originalsMethod === 'Электронная почта');
+  show('.originals-post-fields', d.originalsMethod === 'Почта России');
+  show('.carrier-other', d.carrier === 'Другая');
+  show('.basis-builder',d.basisStructured); show('.basis-free',!d.basisStructured);
+  if (d.contactSame) {
+    value('recipientContactName').value = d.customerType === 'legal' ? d.legalSigner || '' : d.personName || '';
+    if (d.customerType === 'person') value('recipientPhone').value = d.contactPhone || '';
+  }
+  value('recipientContactName').readOnly = d.contactSame;
+  if (d.pickupSelf && d.customerType === 'person') {
+    ['Name','Passport','PassportType'].forEach(part => { value('rep' + part).value = value('person' + part).value; });
+    value('repPhone').value = d.contactPhone || '';
+  }
+  ['repName','repPhone','repPassport','repPassportType'].forEach(name => {
+    value(name).disabled = false;
+    if (value(name).tagName === 'INPUT') value(name).readOnly = Boolean(d.pickupSelf && d.customerType === 'person');
+  });
+  const r = ShipmentRules.recipient(getData());
+  document.querySelector('#recipient-summary').textContent = d.recipientSame ? 'Получатель: ' + (r.name || 'заполните данные покупателя на шаге 2') + (r.inn ? ', ИНН ' + r.inn : '') : '';
+  all('.choice input').forEach(input => input.closest('.choice').classList.toggle('active', input.checked));
+}
+window.syncShipment = sync;
+function saveDraft() {
+  try { sessionStorage.setItem(draftKey, JSON.stringify({ at: Date.now(), data: getData() })); }
+  catch (_) { document.querySelector('#draft-status').textContent = 'Автосохранение недоступно в этом браузере. Не закрывайте вкладку до отправки.'; }
+}
+try {
+  const draft = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
+  if (draft && Date.now() - draft.at < 24 * 60 * 60 * 1000) {
+    all('#request-form input, #request-form textarea, #request-form select').forEach(input => {
+      const saved = draft.data[input.name];
+      if (saved == null || input.type === 'file') return;
+      if (input.type === 'radio') input.checked = input.value === saved;
+      else if (input.type === 'checkbox') input.checked = saved === true;
+      else input.value = String(saved).slice(0, input.maxLength > 0 ? input.maxLength : 2000);
+    });
+    // Terminal IDs are only valid after the route is checked again.
+    value('pekWarehouseId').value = '';
+    document.querySelector('#draft-status').textContent = 'Черновик восстановлен в этой вкладке. Проверьте данные и повторно выберите терминал.';
+  }
+} catch (_) { /* A damaged or unavailable draft must not block filling. */ }
+form.addEventListener('input', function (event) {
+  if (event.target.name === 'recipientContactName' && !event.target.readOnly) value('contactSame').checked = false;
+  invalidate(); sync(); saveDraft();
 });
+form.addEventListener('change', function () { invalidate(); sync(); saveDraft(); });
+document.addEventListener('shipment:change', function () { invalidate(); sync(); saveDraft(); });
+all('input[type="tel"]').forEach(input => input.addEventListener('blur', function () {
+  const digits = input.value.replace(/\D/g, '');
+  if (/^[78]\d{10}$/.test(digits)) input.value = '+7 ' + digits.slice(1,4) + ' ' + digits.slice(4,7) + '-' + digits.slice(7,9) + '-' + digits.slice(9);
+  saveDraft();
+}));
+sync();
+window.getShipmentPreviewHtml = function () { return window.makeShipmentDocument(getData()); };
 
-function fileToPayload(file) {
-  return new Promise(function (resolve, reject) {
+async function buildPdf(html, version) {
+  if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) throw new Error('Модуль PDF не загрузился. Обновите страницу и повторите скачивание.');
+  const frame = document.createElement('iframe');
+  frame.title = 'Подготовка файла'; frame.setAttribute('aria-hidden','true'); frame.tabIndex = -1;
+  frame.style.cssText = 'position:fixed;left:0;top:0;width:794px;height:1200px;border:0;z-index:-100;pointer-events:none;';
+  const ready = new Promise((resolve,reject) => {
+    const timer = setTimeout(() => reject(new Error('Не удалось подготовить документ. Повторите скачивание.')), 15000);
+    frame.onload = () => { clearTimeout(timer); resolve(); };
+  });
+  frame.srcdoc = html; document.body.appendChild(frame);
+  try {
+    await ready;
+    await frame.contentDocument.fonts.ready;
+    const pdf = new window.jspdf.jsPDF({ unit:'mm', format:'a4', orientation:'portrait', compress:true });
+    const pages = Array.from(frame.contentDocument.querySelectorAll('.page'));
+    if (!pages.length) throw new Error('Документ не содержит страниц.');
+    for (let i=0; i<pages.length; i++) {
+      if (version !== generation) throw new Error('Данные изменились. Подготовьте документ заново.');
+      const canvas = await window.html2canvas(pages[i], { scale:2, backgroundColor:'#ffffff', logging:false, useCORS:true, windowWidth:794, scrollX:0, scrollY:0 });
+      const factor = Math.min(190/canvas.width, 277/canvas.height);
+      const width = canvas.width*factor, height = canvas.height*factor;
+      if (i) pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg',.95), 'JPEG', 10+(190-width)/2, 9, width, height, undefined, 'MEDIUM');
+    }
+    return pdf;
+  } finally { frame.remove(); }
+}
+function resultError(message) {
+  result.classList.add('has-error');
+  document.querySelector('#result-title').textContent = 'Нужно повторить действие';
+  document.querySelector('#sign-instruction').textContent = message;
+}
+function currentDocument() {
+  if (!finalizedRequestData || !documentHtml) throw new Error('Данные изменились. Проверьте заявку и подготовьте PDF заново.');
+}
+form.addEventListener('submit', function (event) {
+  event.preventDefault();
+  const data = getData(), errors = ShipmentRules.errors(data);
+  if (errors.length) { window.ShipmentWizard.showErrors(errors); return; }
+  invalidate(); finalizedRequestData = JSON.parse(JSON.stringify(data));
+  documentHtml = window.makeShipmentDocument(finalizedRequestData);
+  result.classList.remove('hidden','has-error');
+  document.querySelector('#result-title').textContent = 'Данные проверены';
+  document.querySelector('#result-text').textContent = 'Скачайте PDF и подпишите обе страницы.';
+  document.querySelector('#sign-instruction').textContent = data.signMethod === 'print' ? 'После скачивания прикрепите подписанный скан или фото и отправьте заявку.' : 'Передайте скачанный PDF бухгалтерии. Для менеджера можно отдельно зарегистрировать заявку для ЭДО.';
+  result.scrollIntoView({ behavior:'auto', block:'start' });
+});
+async function downloadDocument() {
+  const button = document.querySelector('#download-pdf');
+  const version = generation;
+  button.disabled = true; button.textContent = 'Подготавливаем PDF…';
+  try {
+    currentDocument();
+    const pdf = generatedPdf || await buildPdf(documentHtml, version);
+    if (version !== generation) return;
+    generatedPdf = pdf;
+    await pdf.save('Заявка на отгрузку.pdf', {returnPromise:true});
+    result.classList.remove('has-error');
+    document.querySelector('#result-title').textContent = 'PDF подготовлен для скачивания';
+    document.querySelector('#sign-instruction').textContent = finalizedRequestData.signMethod === 'print' ? 'Подпишите обе страницы и прикрепите скан или фото ниже.' : 'Передайте файл бухгалтерии для подписания через ЭДО. Затем сообщите менеджеру о заявке.';
+    show('#signed-upload-result', finalizedRequestData.signMethod === 'print');
+    show('#edo-submit-result', finalizedRequestData.signMethod === 'edo');
+  } catch (error) { if (version === generation) resultError(error.message); }
+  finally { button.disabled = false; button.textContent = 'Скачать PDF'; }
+}
+document.querySelector('#download-pdf').addEventListener('click', downloadDocument);
+document.querySelector('#print-pdf').addEventListener('click', function () {
+  try {
+    currentDocument();
+    const popup = window.open('', '_blank');
+    if (!popup) throw new Error('Браузер заблокировал окно печати. Разрешите всплывающее окно или скачайте PDF.');
+    popup.document.open(); popup.document.write(documentHtml); popup.document.close();
+    popup.addEventListener('load', () => { popup.focus(); popup.print(); }, {once:true});
+    show('#signed-upload-result', finalizedRequestData.signMethod === 'print');
+    show('#edo-submit-result', finalizedRequestData.signMethod === 'edo');
+  } catch (error) { resultError(error.message); }
+});
+function updateFiles() {
+  const files = Array.from(signedFilesInput.files);
+  const errors = ShipmentRules.fileErrors(files);
+  fileName.textContent = files.length ? files.map(file => file.name + ' (' + (file.size/1024/1024).toFixed(1) + ' МБ)').join(', ') : 'Файлы не выбраны';
+  sendStatus.textContent = errors.join(' ');
+  sendStatus.classList.toggle('is-error', errors.length > 0);
+  show('#clear-files', files.length > 0);
+  document.querySelector('#submit-signed-request').disabled = submitted || errors.length > 0;
+}
+signedFilesInput.addEventListener('change', function () { submission=null; updateFiles(); });
+document.querySelector('#clear-files').addEventListener('click', () => { submission=null; signedFilesInput.value=''; updateFiles(); });
+function asPayload(file) {
+  return new Promise((resolve,reject) => {
     const reader = new FileReader();
-    reader.onerror = function () { reject(new Error('Не удалось прочитать файл «' + file.name + '».')); };
-    reader.onload = function () {
-      resolve({
-        name: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        base64: String(reader.result).split(',')[1]
-      });
-    };
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл «' + file.name + '».'));
+    reader.onload = () => resolve({name:file.name,mimeType:file.type||ShipmentRules.mime[file.name.split('.').pop().toLowerCase()],base64:String(reader.result).split(',')[1]});
     reader.readAsDataURL(file);
   });
 }
-
-async function sendToRegistry(mode) {
+async function register(mode) {
+  currentDocument();
+  if (mode !== (finalizedRequestData.signMethod === 'edo' ? 'edo' : 'signed')) throw new Error('Способ подписания изменился. Подготовьте документ заново.');
   const files = mode === 'signed' ? Array.from(signedFilesInput.files) : [];
-  if (mode === 'signed' && !files.length) throw new Error('Прикрепите хотя бы один файл с подписанной заявкой.');
-  if (files.length > 2) throw new Error('Можно прикрепить не более двух файлов.');
-
-  const payload = {
-    action: 'submit',
-    mode: mode,
-    data: finalizedRequestData || getData(),
-    files: await Promise.all(files.map(fileToPayload))
-  };
-
-  await fetch(INTEGRATION_ENDPOINT, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
-  });
-}
-
-form.addEventListener('submit', function (event) {
-  event.preventDefault();
-  const data = getData();
-  const error = document.querySelector('#form-error');
+  if (mode === 'signed' && !files.length) throw new Error('Выберите хотя бы один файл с подписанной заявкой.');
+  const issues = ShipmentRules.fileErrors(files); if (issues.length) throw new Error(issues[0]);
+  const endpoint = ShipmentTransport.endpoint;
+  const health = await ShipmentTransport.jsonp(endpoint + '?action=health');
+  if (!health.ok || health.protocol !== 2) throw new Error('Сервис отправки обновляется. PDF можно сохранить. Повторите отправку позже.');
+  if (!submission) submission = { id:crypto.randomUUID(), token:crypto.randomUUID().replace(/-/g,'') };
+  const pdf = generatedPdf || await buildPdf(documentHtml, generation);
+  generatedPdf = pdf;
+  const generated = await asPayload(new File([pdf.output('blob')], 'Заявка на отгрузку.pdf', {type:'application/pdf'}));
+  const payload = {action:'submit', protocol:2, submissionId:submission.id, statusToken:submission.token, mode:mode, data:finalizedRequestData, files:await Promise.all(files.map(asPayload)), generatedPdf:generated};
+  // The opaque POST response is never interpreted as success.
+  let transportError;
   try {
-    validate(data);
-    finalizedRequestData = data;
-    edoLogged = false;
-    documentPdf = makePdf(data);
-    error.textContent = '';
-    result.classList.remove('hidden');
-    document.querySelector('#signed-upload-result').classList.add('hidden');
-
-    const text = data.signMethod === 'print'
-      ? 'Благодарим за заполнение. Скачайте PDF, распечатайте и подпишите его. После скачивания прикрепите до двух файлов и отправьте заявку.'
-      : data.signMethod === 'edo'
-        ? 'Благодарим за заполнение. Скачайте PDF и отправьте его бухгалтерии для отправки через ЭДО.'
-        : 'Документ можно сохранить как PDF. Автоматическая отправка в СБИС потребует отдельного подключения после тестирования формы.';
-    document.querySelector('#result-text').textContent = docTitle(data) + ' сформирована.';
-    document.querySelector('#sign-instruction').textContent = text;
-    result.scrollIntoView({ behavior: 'smooth' });
-  } catch (err) {
-    error.textContent = err.message;
+    await fetch(endpoint, {method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:AbortSignal.timeout(45000)});
+  } catch (error) { transportError = error; }
+  const statusUrl = endpoint + '?action=requestStatus&submissionId=' + encodeURIComponent(submission.id) + '&statusToken=' + encodeURIComponent(submission.token);
+  for (let attempt=0; attempt<12; attempt++) {
+    const status = await ShipmentTransport.jsonp(statusUrl);
+    if (status.ok && status.received && status.requestId) return status;
+    if (status.error) throw new Error(status.error);
+    await new Promise(resolve => setTimeout(resolve,1500));
   }
-});
-
-async function afterDocumentAccess() {
-  const mode = form.querySelector('[name="signMethod"]:checked').value;
-
-  if (mode === 'print') {
-    const upload = document.querySelector('#signed-upload-result');
-    upload.classList.remove('hidden');
-    upload.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
-  }
-
-  if (mode === 'edo' && !edoLogged) {
-    edoLogged = true;
-    const instruction = document.querySelector('#sign-instruction');
-    try {
-      await sendToRegistry('edo');
-      instruction.textContent = 'Благодарим за заполнение. PDF скачан. Информация передана сотруднику, а файл можно отправить бухгалтерии для ЭДО.';
-    } catch (err) {
-      edoLogged = false;
-      instruction.textContent = 'PDF скачан, но не удалось передать уведомление: ' + err.message;
-    }
-  }
+  throw new Error('Подтверждение приёма пока не получено. Повторите отправку: повторная попытка этой заявки не создаст дубликат.' + (transportError ? ' Проверьте соединение.' : ''));
 }
-
-async function downloadDocument() {
-  if (!documentPdf) return;
-  const button = document.querySelector('#download-pdf');
-  const instruction = document.querySelector('#sign-instruction');
-  button.disabled = true;
-  button.textContent = 'Подготавливаем PDF…';
+async function submitRequest(mode, button) {
+  if (sending || submitted) return;
+  sending = true; form.inert = true; signedFilesInput.disabled = true;
+  const buttons = all('#submit-signed-request, #submit-edo-request');
+  buttons.forEach(el => { el.disabled=true; });
+  sendStatus.classList.remove('is-error'); sendStatus.textContent = 'Отправляем файлы и ожидаем подтверждение…';
   try {
-    await downloadPdf(documentPdf);
-    await afterDocumentAccess();
-  } catch (err) {
-    instruction.textContent = err.message;
-  } finally {
-    button.disabled = false;
-    button.textContent = 'Скачать PDF';
-  }
+    const status = await register(mode);
+    submitted = true; show('#request-receipt',true);
+    receipt.textContent = 'Заявка № ' + status.requestId + ' принята и сохранена.';
+    sendStatus.textContent = status.notification === 'sent' ? 'Менеджеру отправлено уведомление.' : 'Заявка сохранена. Уведомление менеджеру ожидает отправки; повторно отправлять заявку не нужно.';
+    button.textContent = 'Заявка принята';
+    try { sessionStorage.removeItem(draftKey); } catch (_) {}
+  } catch (error) { sendStatus.textContent = error.message; sendStatus.classList.add('is-error'); }
+  finally { sending=false; form.inert=false; signedFilesInput.disabled=false; buttons.forEach(el => { el.disabled=submitted; }); }
 }
-
-async function printDocument() {
-  if (!documentPdf) return;
-  printPdf(documentPdf);
-  await afterDocumentAccess();
-}
-
-sendButton.addEventListener('click', async function () {
-  sendStatus.textContent = '';
-  sendButton.disabled = true;
-  try {
-    await sendToRegistry('signed');
-    sendStatus.textContent = 'Заявка отправлена. Сотрудник получил уведомление.';
-    sendButton.textContent = 'Заявка отправлена';
-  } catch (err) {
-    sendStatus.textContent = err.message;
-    sendButton.disabled = false;
-  }
-});
-
-document.querySelector('#download-pdf').addEventListener('click', downloadDocument);
-document.querySelector('#print-pdf').addEventListener('click', printDocument);
-
+document.querySelector('#submit-signed-request').addEventListener('click', event => submitRequest('signed',event.currentTarget));
+document.querySelector('#submit-edo-request').addEventListener('click', event => submitRequest('edo',event.currentTarget));

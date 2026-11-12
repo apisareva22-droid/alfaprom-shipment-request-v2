@@ -1,161 +1,38 @@
 (function () {
-  // Public requisites endpoint. Credentials and upstream requests stay on the server.
-  const API_URL = 'https://script.google.com/macros/s/AKfycbypYQn_gIGVDe-wbIUvpySTnRKRQgXtUkAi2xoxc6-mjmzDRwJiuZNZCT8yGmvPz2JwCg/exec';
-  const innInput = document.querySelector('[name="legalInn"]');
-  const status = document.querySelector('#legal-inn-status');
-  const details = document.querySelector('#legal-details');
-  const recipientInput = document.querySelector('[name="recipient"]');
-  const shipmentBasisInput = document.querySelector('[name="shipmentBasis"]');
-  if (!innInput || !status || !details) return;
-
-  const fallback = 'К сожалению, не удалось найти организацию по ИНН. Введите данные.';
-  const fields = {
-    name: { target: 'legalName', source: ['name', 'companyName', 'fullName'] },
-    signer: { target: 'legalSigner', source: ['signer', 'signerName', 'director', 'ceo', 'generalDirector', 'headName'] },
-    role: { target: 'legalRole', source: ['role', 'signerRole', 'signerPosition', 'directorPosition', 'position', 'headPosition'] },
-    phone: { target: 'recipientPhone', source: ['phone', 'recipientPhone', 'contactPhone'], preserveWhenEmpty: true }
-  };
-
-  function firstText(record, names) {
-    for (const name of names) {
-      const value = record[name];
-      if (typeof value === 'string' && value.trim()) return value.trim();
-    }
-    return '';
+  const form=document.querySelector('#request-form');
+  const endpoint='https://script.google.com/macros/s/AKfycbypYQn_gIGVDe-wbIUvpySTnRKRQgXtUkAi2xoxc6-mjmzDRwJiuZNZCT8yGmvPz2JwCg/exec';
+  const input=document.querySelector('[name="legalInn"]'),status=document.querySelector('#legal-inn-status'),details=document.querySelector('#legal-details');
+  let sequence=0,timer;
+  function message(text){status.textContent=text;}
+  function manual() { clearTimeout(timer);++sequence;details.classList.remove('hidden');details.dataset.lookupState='ready';message('Введите реквизиты вручную и проверьте ИНН.'); }
+  document.querySelector('#manual-company').addEventListener('click',manual);
+  function first(record,names){for(const name of names){if(typeof record[name]==='string'&&record[name].trim())return record[name].trim();}return '';}
+  async function lookup(inn,id) {
+    message('Ищем организацию… Можно заполнить реквизиты вручную.');
+    try {
+      const response=await ShipmentTransport.jsonp(endpoint+'?inn='+encodeURIComponent(inn),8000);
+      if(id!==sequence||input.value!==inn||document.querySelector('[name="customerType"]:checked').value!=='legal')return;
+      const company=response&&response.ok&&response.found&&response.company;
+      if(company&&String(company.inn||company.taxId||company.INN||'').replace(/\D/g,'')===inn) {
+        const mappings={legalName:['name','companyName','fullName'],legalSigner:['signer','signerName','director','ceo','generalDirector','headName'],legalRole:['role','signerRole','signerPosition','position','headPosition']};
+        Object.entries(mappings).forEach(([target,names])=>{form.elements.namedItem(target).value=first(company,names);});
+        if(!form.elements.namedItem('recipientPhone').value)form.elements.namedItem('recipientPhone').value=first(company,['phone','recipientPhone','contactPhone']);
+        if(company.invoice&&company.invoice.number&&!form.elements.namedItem('shipmentBasis').value)form.elements.namedItem('shipmentBasis').value='Счёт № '+company.invoice.number+(company.invoice.date?' от '+company.invoice.date:'');
+        message('Реквизиты найдены. Проверьте и дополните их.');
+      } else message('Организация не найдена. Введите реквизиты вручную.');
+    } catch (_) {if(id!==sequence)return;message('Поиск временно недоступен. Введите реквизиты вручную.');}
+    if(id!==sequence)return;
+    details.classList.remove('hidden');details.dataset.lookupState='ready';
+    document.dispatchEvent(new Event('shipment:change'));
   }
-
-  let autoRecipient = '';
-  let autoShipmentBasis = '';
-  function syncRecipientName(name) {
-    const value = String(name || '').trim();
-    if (!value || !recipientInput) return;
-    if (!recipientInput.value || recipientInput.value === autoRecipient) {
-      recipientInput.value = value;
-      autoRecipient = value;
-    }
-  }
-
-  function syncInvoice(invoice) {
-    const number = String(invoice && invoice.number || '').trim();
-    const date = String(invoice && invoice.date || '').trim();
-    if (!number || !shipmentBasisInput) return;
-    const value = 'Счёт № ' + number + (date ? ' от ' + date : '');
-    if (!shipmentBasisInput.value || shipmentBasisInput.value === autoShipmentBasis) {
-      shipmentBasisInput.value = value;
-      autoShipmentBasis = value;
-    }
-  }
-
-  let timer;
-  let requestNumber = 0;
-  let cancelRequest = function () {};
-  let lastInn = '';
-
-  function message(text, kind) {
-    status.textContent = text;
-    status.className = 'lookup-status' + (kind ? ' ' + kind : '');
-  }
-
-  function isLegal() {
-    const selected = document.querySelector('[name="customerType"]:checked');
-    return selected && selected.value === 'legal';
-  }
-
-  function reset() {
-    clearTimeout(timer);
-    ++requestNumber;
-    cancelRequest();
+  input.addEventListener('input',function(){
+    clearTimeout(timer);const id=++sequence;
+    input.value=input.value.replace(/\D/g,'');
+    ['legalName','legalSigner','legalRole'].forEach(name=>{form.elements.namedItem(name).value='';});
     details.classList.add('hidden');
-    details.dataset.lookupState = 'idle';
-    details.removeAttribute('aria-busy');
-    details.querySelectorAll('input').forEach(function (input) { input.value = input.defaultValue; });
-    if (shipmentBasisInput && shipmentBasisInput.value === autoShipmentBasis) {
-      shipmentBasisInput.value = '';
-      autoShipmentBasis = '';
-    }
-    document.querySelector('#result').classList.add('hidden');
-  }
-
-  function lookup(inn) {
-    const currentRequest = requestNumber;
-    const callback = '__alfapromLookup' + Date.now() + '_' + currentRequest;
-    const script = document.createElement('script');
-    let timeout;
-    let settled = false;
-
-    function cleanup() {
-      clearTimeout(timeout);
-      script.remove();
-      delete window[callback];
-    }
-
-    function finish(response) {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      if (currentRequest !== requestNumber || innInput.value !== inn || !isLegal()) return;
-      const company = response && response.ok === true && response.found === true && response.company;
-      const returnedInn = String(company && (company.inn || company.taxId || company.INN) || '').replace(/\D/g, '');
-      const found = company && returnedInn === inn && typeof company.name === 'string' && company.name.trim();
-      if (found) {
-        Object.keys(fields).forEach(function (key) {
-          const field = fields[key];
-          const value = firstText(company, field.source);
-          const target = document.querySelector('[name="' + field.target + '"]');
-          if (target && !(field.preserveWhenEmpty && !value)) target.value = value;
-        });
-        syncRecipientName(firstText(company, fields.name.source));
-        syncInvoice(company.invoice);
-      }
-      details.classList.remove('hidden');
-      details.dataset.lookupState = 'ready';
-      details.removeAttribute('aria-busy');
-      message(found ? 'Данные организации заполнены. Проверьте и при необходимости дополните их.' : fallback, found ? 'success' : '');
-    }
-
-    cancelRequest = function () { settled = true; cleanup(); };
-    details.dataset.lookupState = 'loading';
-    details.setAttribute('aria-busy', 'true');
-    message('Ищем организацию…', 'loading');
-    window[callback] = finish;
-    script.onerror = function () { finish(null); };
-    script.onload = function () { if (!settled) finish(null); };
-    timeout = setTimeout(function () { finish(null); }, 20000);
-    script.src = API_URL + '?inn=' + encodeURIComponent(inn) + '&callback=' + encodeURIComponent(callback);
-    script.referrerPolicy = 'no-referrer';
-    document.head.appendChild(script);
-  }
-
-  function onInnInput() {
-    const inn = innInput.value.replace(/\D/g, '');
-    innInput.value = inn;
-    if (inn === lastInn) return;
-    lastInn = inn;
-    reset();
-    if (!inn) { message('Введите ИНН для поиска организации.'); return; }
-    if (inn.length !== 10 && inn.length !== 12) { message('Введите 10 или 12 цифр ИНН.'); return; }
-    if (!isLegal()) return;
-    timer = setTimeout(function () { lookup(inn); }, 600);
-  }
-
-  innInput.addEventListener('input', onInnInput);
-  const legalNameInput = document.querySelector('[name="legalName"]');
-  if (legalNameInput) {
-    legalNameInput.addEventListener('input', function () {
-      if (isLegal()) syncRecipientName(legalNameInput.value);
-    });
-  }
-  document.querySelectorAll('[name="customerType"]').forEach(function (input) {
-    input.addEventListener('change', function () {
-      clearTimeout(timer);
-      ++requestNumber;
-      cancelRequest();
-      if (isLegal() && details.classList.contains('hidden')) {
-        lastInn = '';
-        onInnInput();
-      }
-    });
+    if(!ShipmentRules.validInn(input.value)){message('Введите корректный ИНН: 10 или 12 цифр.');return;}
+    timer=setTimeout(()=>lookup(input.value,id),400);
   });
-  message('Введите ИНН для поиска организации.');
-  if (innInput.value) onInnInput();
+  if(input.value&&ShipmentRules.validInn(input.value)&&form.elements.namedItem('legalName').value)details.classList.remove('hidden');
+  else message('Введите ИНН или заполните реквизиты вручную.');
 }());
