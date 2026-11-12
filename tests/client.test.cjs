@@ -81,3 +81,29 @@ test('JSONP timeout rejects rather than leaving a pending promise',async()=>{
     await assert.rejects(a.w.ShipmentTransport.jsonp('https://test.invalid/slow',10),/не ответил вовремя/);
   }finally{a.dom.window.close();}
 });
+test('company lookup uses the callback accepted by the deployed requisites service',async()=>{
+  const a=app();try{
+    const input=a.doc.querySelector('[name="legalInn"]');input.value='9900000017';
+    input.dispatchEvent(new a.w.Event('input',{bubbles:true}));
+    await new Promise(resolve=>setTimeout(resolve,450));
+    const script=[...a.doc.querySelectorAll('script[src]')].find(el=>el.src.includes('inn=9900000017'));
+    assert(script,'lookup request must be inserted');
+    const callback=new URL(script.src).searchParams.get('callback');
+    assert.match(callback,/^__alfapromLookup\d+_\d+$/);
+    a.w[callback]({ok:true,found:true,company:{inn:'9900000017',name:'ООО Тестовый покупатель',director:'Тестов Тест Тестович',position:'Директор',phone:'+7 900 123-45-67',invoice:{number:'ТЕСТ-5',date:'12.11.2026'}}});
+    await Promise.resolve();await Promise.resolve();
+    assert.equal(a.doc.querySelector('[name="legalName"]').value,'ООО Тестовый покупатель');
+    assert.equal(a.doc.querySelector('[name="legalSigner"]').value,'Тестов Тест Тестович');
+    assert.match(a.doc.querySelector('[name="shipmentBasis"]').value,/ТЕСТ-5/);
+    assert.match(a.doc.querySelector('#legal-inn-status').textContent,/Реквизиты найдены/);
+  }finally{a.dom.window.close();}
+});
+test('shared transport keeps the default callback for carrier and receipt APIs',async()=>{
+  const a=app();try{
+    const request=a.w.ShipmentTransport.jsonp('https://test.invalid/health',1000);
+    const script=[...a.doc.querySelectorAll('script[src]')].find(el=>el.src.includes('test.invalid/health'));
+    const callback=new URL(script.src).searchParams.get('callback');
+    assert.match(callback,/^__shipment_\d+_\d+$/);
+    a.w[callback]({ok:true,protocol:2});assert.equal((await request).protocol,2);
+  }finally{a.dom.window.close();}
+});

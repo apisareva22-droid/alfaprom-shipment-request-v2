@@ -3,9 +3,9 @@
   let sequence = 0;
   window.ShipmentTransport = {
     endpoint: 'https://script.google.com/macros/s/AKfycbyg0Ov5Gc632N16R61A1MySKK4jiU-Jh9AO4yoDiJvS7Y5m2FWt7emuiClrQXFrcXKrPA/exec',
-    jsonp: function (url, timeoutMs) {
+    jsonp: function (url, timeoutMs, callbackPrefix) {
       return new Promise(function (resolve, reject) {
-        const callback = '__shipment_' + Date.now() + '_' + (++sequence);
+        const callback = (callbackPrefix || '__shipment_') + Date.now() + '_' + (++sequence);
         const script = document.createElement('script');
         let settled = false;
         function finish(error, value) {

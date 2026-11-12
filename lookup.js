@@ -10,7 +10,7 @@
   async function lookup(inn,id) {
     message('Ищем организацию… Можно заполнить реквизиты вручную.');
     try {
-      const response=await ShipmentTransport.jsonp(endpoint+'?inn='+encodeURIComponent(inn),8000);
+      const response=await ShipmentTransport.jsonp(endpoint+'?inn='+encodeURIComponent(inn),20000,'__alfapromLookup');
       if(id!==sequence||input.value!==inn||document.querySelector('[name="customerType"]:checked').value!=='legal')return;
       const company=response&&response.ok&&response.found&&response.company;
       if(company&&String(company.inn||company.taxId||company.INN||'').replace(/\D/g,'')===inn) {
